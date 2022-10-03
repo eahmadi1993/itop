@@ -1,0 +1,2 @@
+class Spline:
+    pass
