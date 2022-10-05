@@ -1,3 +1,4 @@
+import numpy as np
 from numpy import genfromtxt
 
 
@@ -40,4 +41,17 @@ class Track:
 
 
 class Spline:
-    pass
+    def __init__(self,track):
+        self.track = track
+
+    def normalizedSplineInterp(self):
+        pass
+
+    def splineInterp(self):
+        t = np.arange(0,len())
+
+
+
+
+
+
