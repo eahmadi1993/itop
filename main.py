@@ -1,10 +1,9 @@
-from data.data import Track
+from data.data import Track, Spline
 
 tr = Track()
-
-print(tr.track)
-
 tr.load_track()
 
-for trc, tr_shape in tr.track.items():
-    print(trc, tr_shape.shape)
+sp = Spline(tr)
+traj = sp.get_traj()
+
+print(traj)
