@@ -7,37 +7,37 @@ class Track:
         self.track = {}
 
     def load_track(self):
-        westEast = genfromtxt('we.csv', delimiter=',')
-        westNorth = genfromtxt('wn.csv', delimiter=',')
-        westSouth = genfromtxt('ws.csv', delimiter=',')
+        west_east = genfromtxt('we.csv', delimiter= ',')
+        west_north = genfromtxt('wn.csv', delimiter= ',')
+        west_south = genfromtxt('ws.csv', delimiter= ',')
 
-        southNorth = genfromtxt('sn.csv', delimiter=',')
-        southEast = genfromtxt('se.csv', delimiter=',')
-        southWest = genfromtxt('sw.csv', delimiter=',')
+        south_north = genfromtxt('sn.csv', delimiter= ',')
+        south_east = genfromtxt('se.csv', delimiter= ',')
+        south_west = genfromtxt('sw.csv', delimiter= ',')
 
-        northWest = genfromtxt('nw.csv', delimiter=',')
-        northEast = genfromtxt('ne.csv', delimiter=',')
-        northSouth = genfromtxt('ns.csv', delimiter=',')
+        north_west = genfromtxt('nw.csv', delimiter= ',')
+        north_east = genfromtxt('ne.csv', delimiter= ',')
+        north_south = genfromtxt('ns.csv', delimiter= ',')
 
-        eastWest = genfromtxt('ew.csv', delimiter=',')
-        eastNorth = genfromtxt('en.csv', delimiter=',')
-        eastSouth = genfromtxt('es.csv', delimiter=',')
+        east_west = genfromtxt('ew.csv', delimiter= ',')
+        east_north = genfromtxt('en.csv', delimiter= ',')
+        east_south = genfromtxt('es.csv', delimiter= ',')
 
-        self.track["we"] = westEast
-        self.track["wn"] = westNorth
-        self.track["ws"] = westSouth
+        self.track["we"] = west_east
+        self.track["wn"] = west_north
+        self.track["ws"] = west_south
 
-        self.track["sn"] = southNorth
-        self.track["se"] = southEast
-        self.track["sw"] = southWest
+        self.track["sn"] = south_north
+        self.track["se"] = south_east
+        self.track["sw"] = south_west
 
-        self.track["nw"] = northWest
-        self.track["ne"] = northEast
-        self.track["ns"] = northSouth
+        self.track["nw"] = north_west
+        self.track["ne"] = north_east
+        self.track["ns"] = north_south
 
-        self.track["ew"] = eastWest
-        self.track["en"] = eastNorth
-        self.track["es"] = eastSouth
+        self.track["ew"] = east_west
+        self.track["en"] = east_north
+        self.track["es"] = east_south
 
 
 class Spline:
