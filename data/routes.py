@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from numpy import genfromtxt
 import casadi as cs
@@ -5,8 +6,9 @@ import scipy.integrate as integrate
 
 
 class Track:
-    def __init__(self):
+    def __init__(self, lane_width, num_lane):
         self.track_data = {}
+        self.track_width = lane_width * num_lane
 
     def load_track(self):
         west_east = genfromtxt('we.csv', delimiter = ',')
@@ -103,8 +105,8 @@ class Spline:
     def spline_length(self, lut_x, lut_y, xt, yt):
         d_lut_x = lut_x.jacobian()
         d_lut_y = lut_y.jacobian()
-        umin = np.arange(len(xt) - 1) #0:229
-        umax = np.arange(1, len(xt))  #1:231
+        umin = np.arange(len(xt) - 1)  # 0:229
+        umax = np.arange(1, len(xt))  # 1:231
         l = np.zeros((len(umin), 1))
 
         def haux(u):
@@ -114,3 +116,93 @@ class Spline:
         for i in range(len(umin)):
             l[i] = integrate.quad(haux, float(umin[i]), float(umax[i]))[0]
         return l
+
+
+class ThetaFinder:
+    def __init__(self, track: Track, spline: Spline):
+        self.track = track
+        self.spline = spline
+        self.init_x = None
+        self.init_y = None
+
+        self.paths = {
+            "n": ["ns", "ne", "nw"],
+            "s": ["sn", "se", "sw"],
+            "e": ["es", "en", "ew"],
+            "w": ["we", "ws", "wn"]
+        }
+
+    def find_path(self, init_x, init_y):
+
+        if init_x < 0 and init_y < 0:
+            return "w"
+        if init_x > 0 and init_y < 0:
+            return "s"
+        if init_x > 0 and init_y > 0:
+            return "e"
+        if init_x < 0 and init_y > 0:
+            return "n"
+
+    def find_track_traj(self, init_x, init_y):
+        path = self.find_path(init_x, init_y)
+        tr_name = random.choice(self.paths[path])
+        trc_data = self.track.track_data[tr_name]
+        trj_data = self.spline.my_traj[tr_name]
+        return trc_data, trj_data
+
+    def set_initial_conditions(self, init_x, init_y):
+        self.init_x = init_x
+        self.init_y = init_y
+
+    def find_theta(self, posx, posy):
+        track, traj = self.find_track_traj(self.init_x, self.init_y)
+
+        trc_x = track[0, :]
+        trc_y = track[1, :]
+        n_track = len(trc_x)
+        distance_x = trc_x - posx * np.ones((1, n_track))
+        distance_y = trc_y - posy * np.ones((1, n_track))
+
+        squared_dist = distance_x[0] ** 2 + distance_y[0] ** 2
+        squared_dist = squared_dist
+        min_index = np.argmin(squared_dist)
+        e = squared_dist[min_index]
+
+        if min_index == 0:
+            next_index = 1
+            prev_index = n_track
+        elif min_index == n_track:
+            next_index = 0
+            prev_index = n_track - 1
+        else:
+            next_index = min_index + 1
+            prev_index = min_index - 1
+
+        closest_index = min_index
+
+        cosine = np.dot(
+            np.array([posx, posy]).reshape(1, -1) - track[:, min_index].reshape(1, -1),
+            track[:, prev_index].reshape(-1, 1) - track[:, min_index].reshape(-1, 1)
+        )
+
+        if cosine > 0:
+            min_index2 = prev_index
+        else:
+            min_index2 = min_index
+            min_index = next_index
+
+        if e != 0:
+            cosine = np.dot(
+                np.array([posx, posy]).reshape(1, -1) - track[:, min_index2].reshape(1, -1),
+                track[:, min_index].reshape(-1, 1) - track[:, min_index2].reshape(-1, 1)) / (
+                             np.linalg.norm(
+                                 np.array([posx, posy]).reshape(-1, 1) - track[:, min_index2].reshape(-1, 1)) *
+                             np.linalg.norm(track[:, min_index].reshape(-1, 1) - track[:, min_index2].reshape(-1, 1))
+                     )
+        else:
+            cosine = 0
+
+        traj_cl = np.concatenate((np.zeros(1), traj.cl.reshape(-1, )), axis = 0)
+        theta = traj_cl[min_index2]
+        theta = theta + cosine * np.linalg.norm(np.array([posx, posy]).reshape(-1, 1) - track[:, min_index2].reshape(-1, 1), 2)
+        return float(theta)
