@@ -1,9 +1,4 @@
-from data.data import Track, Spline
+from data.routes import Track, Spline
 
 tr = Track()
-tr.load_track()
-
 sp = Spline(tr)
-traj = sp.get_traj()
-
-print(traj)

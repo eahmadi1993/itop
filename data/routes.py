@@ -57,6 +57,8 @@ class Spline:
     def __init__(self, track: Track):
         self.track = track
         self.my_traj = {}
+        self.track.load_track()
+        self.get_traj()
 
     def get_traj(self):
         for tr_name, tr_data in self.track.track_data.items():
@@ -81,7 +83,6 @@ class Spline:
         traj.dd_lut_x = dd_lut_x
         traj.dd_lut_y = dd_lut_y
         traj.cl = cl
-
         return traj
 
     def normalized_spline_interp(self, xt, yt):
@@ -102,8 +103,8 @@ class Spline:
     def spline_length(self, lut_x, lut_y, xt, yt):
         d_lut_x = lut_x.jacobian()
         d_lut_y = lut_y.jacobian()
-        umin = np.arange(len(xt) - 1)
-        umax = np.arange(1, len(xt))
+        umin = np.arange(len(xt) - 1) #0:229
+        umax = np.arange(1, len(xt))  #1:231
         l = np.zeros((len(umin), 1))
 
         def haux(u):
