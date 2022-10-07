@@ -4,7 +4,7 @@ from numpy import genfromtxt
 import casadi as cs
 import scipy.integrate as integrate
 
-
+# This class defines 12 possible movements inside intersection.
 class Track:
     def __init__(self, lane_width, num_lane):
         self.track_data = {}
@@ -43,7 +43,7 @@ class Track:
         self.track_data["en"] = east_north
         self.track_data["es"] = east_south
 
-
+# This class is used in class spline, only to save all its attributes in traj
 class Trajectory:
     def __init__(self):
         self.lut_x = None
@@ -77,6 +77,7 @@ class Spline:
         dd_lut_x = d_lut_x.jacobian()
         dd_lut_y = d_lut_y.jacobian()
 
+        # here, tarj is an object of class Trajectory for giving values to attributes of class Trajectory
         traj = Trajectory()
         traj.lut_x = lut_x
         traj.lut_y = lut_y
@@ -135,8 +136,11 @@ class ThetaFinder:
         self.init_x = init_x
         self.init_y = init_y
 
-    def find_path(self):
 
+    def find_path(self):
+        # this function determines the direction each vehicle enter the plaza, south(s), north(n), east(e), and west(w)
+        # w, s, e, and n are the keys of dictionary paths and each of them has three values
+        # for example "s" has sn, se, and sw
         if self.init_x < 0 and self.init_y < 0:
             return "w"
         if self.init_x > 0 and self.init_y < 0:
