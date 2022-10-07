@@ -124,7 +124,6 @@ class ThetaFinder:
         self.spline = spline
         self.init_x = None
         self.init_y = None
-
         self.paths = {
             "n": ["ns", "ne", "nw"],
             "s": ["sn", "se", "sw"],
@@ -132,30 +131,30 @@ class ThetaFinder:
             "w": ["we", "ws", "wn"]
         }
 
-    def find_path(self, init_x, init_y):
+    def set_initial_conditions(self, init_x, init_y):
+        self.init_x = init_x
+        self.init_y = init_y
 
-        if init_x < 0 and init_y < 0:
+    def find_path(self):
+
+        if self.init_x < 0 and self.init_y < 0:
             return "w"
-        if init_x > 0 and init_y < 0:
+        if self.init_x > 0 and self.init_y < 0:
             return "s"
-        if init_x > 0 and init_y > 0:
+        if self.init_x > 0 and self.init_y > 0:
             return "e"
-        if init_x < 0 and init_y > 0:
+        if self.init_x < 0 and self.init_y > 0:
             return "n"
 
-    def find_track_traj(self, init_x, init_y):
-        path = self.find_path(init_x, init_y)
+    def find_track_traj(self):
+        path = self.find_path()
         tr_name = random.choice(self.paths[path])
         trc_data = self.track.track_data[tr_name]
         trj_data = self.spline.my_traj[tr_name]
         return trc_data, trj_data
 
-    def set_initial_conditions(self, init_x, init_y):
-        self.init_x = init_x
-        self.init_y = init_y
-
     def find_theta(self, posx, posy):
-        track, traj = self.find_track_traj(self.init_x, self.init_y)
+        track, traj = self.find_track_traj()
 
         trc_x = track[0, :]
         trc_y = track[1, :]
@@ -164,7 +163,6 @@ class ThetaFinder:
         distance_y = trc_y - posy * np.ones((1, n_track))
 
         squared_dist = distance_x[0] ** 2 + distance_y[0] ** 2
-        squared_dist = squared_dist
         min_index = np.argmin(squared_dist)
         e = squared_dist[min_index]
 
