@@ -4,6 +4,7 @@ from numpy import genfromtxt
 import casadi as cs
 import scipy.integrate as integrate
 
+
 # This class defines 12 possible movements inside intersection.
 class Track:
     def __init__(self, lane_width, num_lane):
@@ -42,6 +43,7 @@ class Track:
         self.track_data["ew"] = east_west
         self.track_data["en"] = east_north
         self.track_data["es"] = east_south
+
 
 # This class is used in class spline, only to save all its attributes in traj
 class Trajectory:
@@ -136,11 +138,10 @@ class ThetaFinder:
         self.init_x = init_x
         self.init_y = init_y
 
-
     def find_path(self):
-        # this function determines the direction each vehicle enter the plaza, south(s), north(n), east(e), and west(w)
-        # w, s, e, and n are the keys of dictionary paths and each of them has three values
-        # for example "s" has sn, se, and sw
+        """ this function determines the direction each vehicle enter the plaza, south(s), north(n), east(e), and west(w)
+        w, s, e, and n are the keys of dictionary paths and each of them has three values
+        for example "s" has sn, se, and sw"""
         if self.init_x < 0 and self.init_y < 0:
             return "w"
         if self.init_x > 0 and self.init_y < 0:
@@ -206,5 +207,6 @@ class ThetaFinder:
 
         traj_cl = np.concatenate((np.zeros(1), traj.cl.reshape(-1, )), axis = 0)
         theta = traj_cl[min_index2]
-        theta = theta + cosine * np.linalg.norm(np.array([posx, posy]).reshape(-1, 1) - track[:, min_index2].reshape(-1, 1), 2)
+        theta = theta + cosine * np.linalg.norm(
+            np.array([posx, posy]).reshape(-1, 1) - track[:, min_index2].reshape(-1, 1), 2)
         return float(theta)
