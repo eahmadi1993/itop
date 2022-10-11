@@ -3,10 +3,11 @@ import numpy as np
 
 class SimParams:
     def __init__(self):
-        self.N = None  # prediction horizon
-        self.tf = None  # final time
+        self.N = None        # prediction horizon
+        self.tf = None       # final time
         self.num_veh = None  # number of vehicles
         self.d_safe = None
+        self.simN = None
 
 
 class BicycleModel:
@@ -22,6 +23,8 @@ class BicycleModel:
         self.ubar = ubar
 
     def _compute_beta_gamma(self):
+        """β is the angle of the current velocity of the center of mass
+             with respect to the longitudinal axis of the vehicle. """
         alpha = self.lr / (self.lf + self.lr)
         beta = np.arctan(alpha * np.tan(self.ubar[1]))
         gamma = alpha / (np.cos(self.ubar[1]) ** 2 * (1 + alpha ** 2 * np.tan(self.ubar[1]) ** 2))
@@ -88,6 +91,8 @@ class NonlinearSystem:
         self.lf = lf
 
     def _compute_beta(self, u):
+        """β is the angle of the current velocity of the center of mass
+         with respect to the longitudinal axis of the vehicle. """
         alpha = self.lr / (self.lf + self.lr)
         beta = np.arctan(alpha * np.tan(u[1]))
         return beta
@@ -110,13 +115,19 @@ class Simulator:
         self.theta_finder = theta_finder
 
     def optimize(self):
-        pass
+        return 1,2
 
-    def get_states(self):
-        pass
 
     def run(self):
-        pass
+        x = ...
+        for t in range(self.params.simN):
+            u_opt, x_opt = self.optimize()
+            u=u_opt[:,0]
+            x = self.sys.update_states(x, u, xbar, ubar)
+            theta = self.theta_finder.find_theta(posx=x[0], posy=x[1])
+
+            for k in range(self.params.num_veh):
+
 
     def get_results(self):
         pass
