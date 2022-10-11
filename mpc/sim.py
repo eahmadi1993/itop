@@ -1,22 +1,26 @@
+import copy
+
 from data.routes import ThetaFinder
 import numpy as np
 
+
 class SimParams:
     def __init__(self):
-        self.N = None        # prediction horizon
-        self.tf = None       # final time
-        self.num_veh = None  # number of vehicles
+        self.N = None  # prediction horizon
+        self.tf = None  # final time
         self.d_safe = None
         self.simN = None
 
 
 class BicycleModel:
     def __init__(self, dt, lf, lr):
-        self.lf = lf       #distance from the center of the mass of the vehicle to the front axles
-        self.lr = lr       #distance from the center of the mass of the vehicle to the rear axles,
-        self.dt = dt       # discretization time
-        self.xbar = None   #linearization points
-        self.ubar = None   #linearization points
+        self.lf = lf  # distance from the center of the mass of the vehicle to the front axles
+        self.lr = lr  # distance from the center of the mass of the vehicle to the rear axles,
+        self.dt = dt  # discretization time
+        self.xbar = None  # linearization points
+        self.ubar = None  # linearization points
+        self.m = 4
+        self.n = 2
 
     def set_lin_points(self, xbar, ubar):
         self.xbar = xbar
@@ -69,6 +73,7 @@ class LinearSystem:
     def __init__(self, bicycle_model: BicycleModel):
         self.dt = bicycle_model.dt
         self.model = bicycle_model
+        self.m, self.n = self.model.m, self.model.n
 
     def update_states(self, x, u, xbar, ubar):
         a_mat, b_mat, d_vec = self.linearize_at(xbar, ubar)
@@ -101,7 +106,7 @@ class NonlinearSystem:
         beta = self._compute_beta(u)
         f = [[float(x[3] * np.cos(x[2] + beta))],
              [float(x[3] * np.sin(x[2] + beta))],
-             [float(x[3] * np.sin(beta)/self.lr)],
+             [float(x[3] * np.sin(beta) / self.lr)],
              [float(u[0])]]
         f = np.array(f)
         x = x + self.dt * f
@@ -113,21 +118,50 @@ class Simulator:
         self.params = params
         self.sys = sys
         self.theta_finder = theta_finder
+        self.num_veh = None
+        self.x_init_list = None
+        self.theta_init_list = []
+        self.u_init_list = []
+
+    def set_vehicle_initial_conditions(self, x_init_list):
+        self.num_veh = len(x_init_list)
+        self.x_init_list = x_init_list
+        m = self.sys.m
+        for i in range(self.num_veh):
+            self.theta_init_list.append(
+                self.theta_finder.find_theta(self.x_init_list[i][0], self.x_init_list[i][1])
+            )
+
+            self.u_init_list.append(
+                np.zeros((m, 1))
+            )
 
     def optimize(self):
-        return 1,2
+        pass
 
+    def update_vehicles_states(self, x_prev_list, u_opt_list, x_bar_list, u_bar_list):
+
+        updated_x = []
+        updated_theta = []
+        for i in range(self.num_veh):
+            x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])
+            theta = self.theta_finder.find_theta(x[0], x[1])
+            updated_x.append(x)
+            updated_theta.append(theta)
+
+        return updated_x, updated_theta
 
     def run(self):
-        x = ...
-        for t in range(self.params.simN):
-            u_opt, x_opt = self.optimize()
-            u=u_opt[:,0]
-            x = self.sys.update_states(x, u, xbar, ubar)
-            theta = self.theta_finder.find_theta(posx=x[0], posy=x[1])
+        time = np.arange(0, self.params.simN, self.sys.dt)
+        x = self.x_init_list
+        theta = self.theta_init_list
+        u = self.u_init_list
 
-            for k in range(self.params.num_veh):
-
+        for t_ind, t in enumerate(time):
+            xbar = copy.deepcopy(x)
+            ubar = copy.deepcopy(u)
+            # optimization is solved here
+            x, theta = self.update_vehicles_states(x, u, xbar, ubar)
 
     def get_results(self):
         pass
