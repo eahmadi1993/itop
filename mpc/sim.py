@@ -1,14 +1,21 @@
 from data.routes import ThetaFinder
 import numpy as np
 
+class SimParams:
+    def __init__(self):
+        self.N = None  # prediction horizon
+        self.tf = None  # final time
+        self.num_veh = None  # number of vehicles
+        self.d_safe = None
+
 
 class BicycleModel:
     def __init__(self, dt, lf, lr):
-        self.lf = lf
-        self.lr = lr
-        self.dt = dt
-        self.xbar = None
-        self.ubar = None
+        self.lf = lf       #distance from the center of the mass of the vehicle to the front axles
+        self.lr = lr       #distance from the center of the mass of the vehicle to the rear axles,
+        self.dt = dt       # discretization time
+        self.xbar = None   #linearization points
+        self.ubar = None   #linearization points
 
     def set_lin_points(self, xbar, ubar):
         self.xbar = xbar
@@ -56,7 +63,6 @@ class BicycleModel:
 
 
 class LinearSystem:
-
     def __init__(self, bicycle_model: BicycleModel):
         self.dt = bicycle_model.dt
         self.model = bicycle_model
@@ -75,12 +81,26 @@ class LinearSystem:
         return a_mat, b_mat, d_vec
 
 
-class SimParams:
-    def __init__(self):
-        self.N = None  # prediction horizon
-        self.tf = None  # final time
-        self.num_veh = None  # number of vehicles
-        self.d_safe = None
+class NonlinearSystem:
+    def __init__(self, dt, lr, lf):
+        self.dt = dt
+        self.lr = lr
+        self.lf = lf
+
+    def _compute_beta(self, u):
+        alpha = self.lr / (self.lf + self.lr)
+        beta = np.arctan(alpha * np.tan(u[1]))
+        return beta
+
+    def update_nls_states(self, x, u):
+        beta = self._compute_beta(u)
+        f = [[float(x[3] * np.cos(x[2] + beta))],
+             [float(x[3] * np.sin(x[2] + beta))],
+             [float(x[3] * np.sin(beta)/self.lr)],
+             [float(u[0])]]
+        f = np.array(f)
+        x = x + self.dt * f
+        return x
 
 
 class Simulator:
