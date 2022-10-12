@@ -1,26 +1,28 @@
 import copy
-
-from data.routes import ThetaFinder
 import numpy as np
+from data.routes import ThetaFinder
 
 
 class SimParams:
     def __init__(self):
-        self.N = None  # prediction horizon
-        self.tf = None  # final time
+        self.N = None    # prediction horizon
+        self.tf = None   # final time
         self.d_safe = None
         self.simN = None
+        self.Q = None
+        self.q = None
+        self.R = None
 
 
 class BicycleModel:
     def __init__(self, dt, lf, lr):
-        self.lf = lf  # distance from the center of the mass of the vehicle to the front axles
-        self.lr = lr  # distance from the center of the mass of the vehicle to the rear axles,
-        self.dt = dt  # discretization time
+        self.lf = lf      # distance from the center of the mass of the vehicle to the front axles
+        self.lr = lr      # distance from the center of the mass of the vehicle to the rear axles,
+        self.dt = dt      # discretization time
         self.xbar = None  # linearization points
         self.ubar = None  # linearization points
-        self.m = 4
-        self.n = 2
+        self.m = 2        # number of control inputs
+        self.n = 4        # number of states
 
     def set_lin_points(self, xbar, ubar):
         self.xbar = xbar
@@ -73,7 +75,8 @@ class LinearSystem:
     def __init__(self, bicycle_model: BicycleModel):
         self.dt = bicycle_model.dt
         self.model = bicycle_model
-        self.m, self.n = self.model.m, self.model.n
+        self.m = self.model.m
+        self.n = self.model.n
 
     def update_states(self, x, u, xbar, ubar):
         a_mat, b_mat, d_vec = self.linearize_at(xbar, ubar)
@@ -127,6 +130,7 @@ class Simulator:
         self.num_veh = len(x_init_list)
         self.x_init_list = x_init_list
         m = self.sys.m
+
         for i in range(self.num_veh):
             self.theta_init_list.append(
                 self.theta_finder.find_theta(self.x_init_list[i][0], self.x_init_list[i][1])
@@ -140,7 +144,6 @@ class Simulator:
         pass
 
     def update_vehicles_states(self, x_prev_list, u_opt_list, x_bar_list, u_bar_list):
-
         updated_x = []
         updated_theta = []
         for i in range(self.num_veh):
@@ -148,7 +151,6 @@ class Simulator:
             theta = self.theta_finder.find_theta(x[0], x[1])
             updated_x.append(x)
             updated_theta.append(theta)
-
         return updated_x, updated_theta
 
     def run(self):
@@ -156,8 +158,7 @@ class Simulator:
         x = self.x_init_list
         theta = self.theta_init_list
         u = self.u_init_list
-
-        for t_ind, t in enumerate(time):
+        for t_ind, t in enumerate(time):   # MPC loop
             xbar = copy.deepcopy(x)
             ubar = copy.deepcopy(u)
             # optimization is solved here
