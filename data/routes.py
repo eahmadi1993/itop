@@ -125,6 +125,10 @@ class ThetaFinder:
     def __init__(self, track: Track, spline: Spline):
         self.track = track
         self.spline = spline
+
+        self.mytrack = None
+        self.mytraj = None
+
         self.init_x = None
         self.init_y = None
         self.paths = {
@@ -137,6 +141,7 @@ class ThetaFinder:
     def set_initial_conditions(self, init_x, init_y):
         self.init_x = init_x
         self.init_y = init_y
+        self.mytrack, self.mytraj = self.find_track_traj()
 
     def find_path(self):
         """ this function determines the direction each vehicle enter the plaza, south(s), north(n), east(e), and west(w)
@@ -159,7 +164,7 @@ class ThetaFinder:
         return trc_data, trj_data
 
     def find_theta(self, posx, posy):
-        track, traj = self.find_track_traj()
+        track, traj = self.mytrack, self.mytraj
 
         trc_x = track[0, :]
         trc_y = track[1, :]

@@ -1,28 +1,33 @@
 import copy
+from typing import List
+
 import numpy as np
-from data.routes import ThetaFinder
+from data.routes import ThetaFinder, Trajectory
+import casadi as cs
 
 
 class SimParams:
     def __init__(self):
-        self.N = None    # prediction horizon
-        self.tf = None   # final time
+        self.N = None  # prediction horizon
+        self.tf = None  # final time
         self.d_safe = None
         self.simN = None
-        self.Q = None
-        self.q = None
-        self.R = None
+        self.qc = None
+        self.ql = None
+        self.q_theta = None
+        self.Ru = None
+        self.Rv = None
 
 
 class BicycleModel:
     def __init__(self, dt, lf, lr):
-        self.lf = lf      # distance from the center of the mass of the vehicle to the front axles
-        self.lr = lr      # distance from the center of the mass of the vehicle to the rear axles,
-        self.dt = dt      # discretization time
+        self.lf = lf  # distance from the center of the mass of the vehicle to the front axles
+        self.lr = lr  # distance from the center of the mass of the vehicle to the rear axles,
+        self.dt = dt  # discretization time
         self.xbar = None  # linearization points
         self.ubar = None  # linearization points
-        self.m = 2        # number of control inputs
-        self.n = 4        # number of states
+        self.m = 2  # number of control inputs
+        self.n = 4  # number of states
 
     def set_lin_points(self, xbar, ubar):
         self.xbar = xbar
@@ -116,6 +121,96 @@ class NonlinearSystem:
         return x
 
 
+class Optimization:
+    def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder, all_traj: List[Trajectory]):
+
+        self.params = params
+        self.sys = sys
+        self.theta_finder = theta_finder
+        self.all_traj = all_traj
+        self.num_veh = len(all_traj)
+
+        self.opti = None
+        self.states = None
+        self.inputs = None
+        self.vir_inputs = None
+        self.theta = None
+
+        self.objective = None
+
+    def set_vars(self):
+        self.opti = cs.Opti()
+        self.states = [self.opti.variable(self.sys.n, self.params.N) for _ in range(self.num_veh)]
+        self.theta = [self.opti.variable(1, self.params.N) for _ in range(self.num_veh)]
+
+        self.inputs = [self.opti.variable(self.sys.m, self.params.N - 1) for _ in range(self.num_veh)]
+        self.vir_inputs = [self.opti.variable(1, self.params.N - 1) for _ in range(self.num_veh)]
+
+    def compute_phi_gamma(self, theta_bar, traj: Trajectory):
+        phi = np.arctan2(traj.d_lut_y(theta_bar, 0), traj.d_lut_x(theta_bar, 0))
+
+        gamma_1 = (traj.dd_lut_y(theta_bar, 0) * traj.d_lut_x(theta_bar, 0)) - \
+                  (traj.d_lut_y(theta_bar, 0) * traj.dd_lut_x(theta_bar, 0))
+
+        gamma_2 = (1 + phi ** 2) * traj.dd_lut_x(theta_bar, 0)
+
+        gamma = gamma_1 / gamma_2
+
+        return phi, gamma
+
+    def _compute_contouring_lag_constants(self, xbar, theta_bar, traj: Trajectory):
+        phi_bar, gamma = self.compute_phi_gamma(theta_bar, traj)
+        ec_bar = np.sin(phi_bar) * (xbar[0] - traj.lut_x(theta_bar)) - \
+                 np.cos(phi_bar) * (xbar[1] - traj.lut_y(theta_bar))
+        el_bar = -np.cos(phi_bar) * (xbar[0] - traj.lut_x(theta_bar)) - \
+                 np.sin(phi_bar) * (xbar[1] - traj.lut_y(theta_bar))
+
+        nabla_ec_bar = np.zeros((self.sys.n, 1))
+        nabla_ec_bar[0] = np.sin(phi_bar)
+        nabla_ec_bar[1] = -np.cos(phi_bar)
+
+        nabla_el_bar = np.zeros((self.sys.n, 1))
+        nabla_el_bar[0] = -np.cos(phi_bar)
+        nabla_el_bar[1] = -np.sin(phi_bar)
+
+        d_p_c = -gamma * el_bar - np.sin(phi_bar) * traj.d_lut_x(theta_bar, 0) + \
+                np.cos(phi_bar) * traj.d_lut_y(theta_bar, 0)
+
+        d_p_l = gamma * ec_bar + np.cos(phi_bar) * traj.d_lut_x(theta_bar, 0) + \
+                np.sin(phi_bar) * traj.d_lut_y(theta_bar, 0)
+
+        return ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l
+
+    def set_obj(self, x_pred_all, theta_pred_all):
+
+        total_obj = 0
+        obj = 0
+        for k in range(self.num_veh):
+            for i in range(self.params.N):
+                ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
+                    x_pred_all[k][:, i],
+                    theta_pred_all[k][i],
+                    self.all_traj[k]
+                )
+                ec = ec_bar + nabla_ec_bar @ self.states[k][:, i] + d_p_c * self.theta[k][i]
+                el = el_bar + nabla_el_bar @ self.states[k][:, i] + d_p_l * self.theta[k][i]
+                obj = self.params.qc * ec ** 2 + \
+                      self.params.ql * el ** 2 - \
+                      self.params.q_theta * self.theta[k][i] + \
+                      self.inputs[k][:, i] @ self.params.Ru @ self.inputs[k][:, i] + \
+                      self.params.Rv * self.vir_inputs[k][i] ** 2
+
+            total_obj += obj
+
+        self.objective = total_obj
+
+    def set_constrs(self):
+        pass
+
+    def solve(self, x, theta, x_pred_all, theta_pred_all):
+        pass
+
+
 class Simulator:
     def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
         self.params = params
@@ -125,6 +220,7 @@ class Simulator:
         self.x_init_list = None
         self.theta_init_list = []
         self.u_init_list = []
+        self.all_traj = []
 
     def set_vehicle_initial_conditions(self, x_init_list):
         self.num_veh = len(x_init_list)
@@ -132,6 +228,9 @@ class Simulator:
         m = self.sys.m
 
         for i in range(self.num_veh):
+            self.theta_finder.set_initial_conditions(x_init_list[i][0], x_init_list[i][1])
+            self.all_traj.append(self.theta_finder.mytraj)
+
             self.theta_init_list.append(
                 self.theta_finder.find_theta(self.x_init_list[i][0], self.x_init_list[i][1])
             )
@@ -158,7 +257,7 @@ class Simulator:
         x = self.x_init_list
         theta = self.theta_init_list
         u = self.u_init_list
-        for t_ind, t in enumerate(time):   # MPC loop
+        for t_ind, t in enumerate(time):  # MPC loop
             xbar = copy.deepcopy(x)
             ubar = copy.deepcopy(u)
             # optimization is solved here
