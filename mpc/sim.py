@@ -199,8 +199,7 @@ class Optimization:
             total_obj += obj
         self.objective = total_obj
 
-    def set_constrs(self, x_prev_all, theta_prev_all, x_pred_all, u_pred_all, theta_pred_all):
-
+    def set_constrs(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         for k in range(self.num_veh):
             # system constraints
             for i in range(1, self.params.N):
@@ -221,9 +220,10 @@ class Optimization:
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
             self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
 
-    def solve(self, x, theta, x_pred_all, theta_pred_all):
+    def solve(self, x, theta, x_pred_all, theta_pred_all, u_pred_all):
         self.set_obj(x_pred_all, theta_pred_all)
         self.opti.minimize(self.objective)
+        self.set_constrs(x, theta, x_pred_all, theta_pred_all, u_pred_all)
 
         self.opti.solver("ipopt")
         solution = self.opti.solve()
@@ -235,10 +235,11 @@ class Optimization:
 
 
 class Simulator:
-    def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
+    def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder, opt:Optimization):
         self.params = params
         self.sys = sys
         self.theta_finder = theta_finder
+        self.opt = opt
         self.num_veh = None
         self.x_init_list = None
         self.theta_init_list = []
