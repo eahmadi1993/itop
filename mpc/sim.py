@@ -46,7 +46,7 @@ class BicycleModel:
                     [float(self.xbar[3] * np.sin(self.xbar[2] + beta))],
                     [float(self.xbar[3] * np.sin(beta) / self.lr)],
                     [float(self.ubar[0])]]
-        xbar_dot = np.array(xbar_dot, dtype = object)
+        xbar_dot = np.array(xbar_dot, dtype = float)
         return xbar_dot
 
     def f_a(self):
@@ -55,7 +55,7 @@ class BicycleModel:
                  [0, 0, self.xbar[3] * np.cos(self.xbar[2] + beta), np.sin(self.xbar[2] + beta)],
                  [0, 0, 0, np.sin(beta) / self.lr],
                  [0, 0, 0, 0]]
-        a_mat = np.array(a_mat, dtype = object)
+        a_mat = np.array(a_mat, dtype = float)
         return a_mat
 
     def f_b(self):
@@ -64,7 +64,7 @@ class BicycleModel:
                  [0, gamma * self.xbar[3] * np.cos(self.xbar[2] + beta)],
                  [0, gamma * np.cos(beta)],
                  [1, 0]]
-        b_mat = np.array(b_mat, dtype = object)
+        b_mat = np.array(b_mat, dtype = float)
         return b_mat
 
     def f_d(self):
@@ -148,15 +148,15 @@ class Optimization:
         self.opti = cs.Opti()
         self.states = [self.opti.variable(self.sys.n, self.params.N) for _ in range(self.num_veh)]
         self.theta = [self.opti.variable(1, self.params.N) for _ in range(self.num_veh)]
-        self.inputs = [self.opti.variable(self.sys.m, self.params.N - 1) for _ in range(self.num_veh)]
-        self.vir_inputs = [self.opti.variable(1, self.params.N - 1) for _ in range(self.num_veh)]
+        self.inputs = [self.opti.variable(self.sys.m, self.params.N) for _ in range(self.num_veh)]
+        self.vir_inputs = [self.opti.variable(1, self.params.N) for _ in range(self.num_veh)]
 
     def _compute_phi_gamma(self, theta_bar, traj: Trajectory):
         phi = np.arctan2(traj.d_lut_y(theta_bar, 0), traj.d_lut_x(theta_bar, 0))
-        gamma_1 = (traj.dd_lut_y(theta_bar, 0) * traj.d_lut_x(theta_bar, 0)) - \
-                  (traj.d_lut_y(theta_bar, 0) * traj.dd_lut_x(theta_bar, 0))
-        gamma_2 = (1 + phi ** 2) * traj.dd_lut_x(theta_bar, 0)
-        gamma = gamma_1 / gamma_2
+        gamma_1 = (traj.dd_lut_y(theta_bar, 0, 0) * traj.d_lut_x(theta_bar, 0)) - \
+                  (traj.d_lut_y(theta_bar, 0) * traj.dd_lut_x(theta_bar, 0, 0))
+        gamma_2 = (1 + phi ** 2) * traj.dd_lut_x(theta_bar, 0, 0)
+        gamma = gamma_1.elements()[0] / gamma_2.elements()[0]
         return phi, gamma
 
     def _compute_contouring_lag_constants(self, xbar, theta_bar, traj: Trajectory):
@@ -183,22 +183,23 @@ class Optimization:
         return ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l
 
     def set_obj(self, x_pred_all, theta_pred_all):
+
         total_obj = 0
-        obj = 0
         for k in range(self.num_veh):
+            obj = 0
             for i in range(self.params.N):
                 ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
-                    x_pred_all[k][:, i],
-                    theta_pred_all[k][i],
+                    x_pred_all[k][:, i].reshape(-1, 1),
+                    float(theta_pred_all[k][i]),
                     self.all_traj[k]
                 )
-                ec = ec_bar + nabla_ec_bar @ self.states[k][:, i] + d_p_c * self.theta[k][i]
-                el = el_bar + nabla_el_bar @ self.states[k][:, i] + d_p_l * self.theta[k][i]
-                obj = self.params.qc * ec ** 2 + \
-                      self.params.ql * el ** 2 - \
-                      self.params.q_theta * self.theta[k][i] + \
-                      self.inputs[k][:, i] @ self.params.Ru @ self.inputs[k][:, i] + \
-                      self.params.Rv * self.vir_inputs[k][i] ** 2
+                ec = ec_bar + cs.dot(nabla_ec_bar, self.states[k][:, i]) + d_p_c * self.theta[k][i]
+                el = el_bar + cs.dot(nabla_el_bar, self.states[k][:, i]) + d_p_l * self.theta[k][i]
+                obj += self.params.qc * ec ** 2 + \
+                       self.params.ql * el ** 2 - \
+                       self.params.q_theta * self.theta[k][i] + \
+                       cs.dot(self.inputs[k][:, i], cs.mtimes(self.params.Ru, self.inputs[k][:, i])) + \
+                       self.params.Rv * self.vir_inputs[k][i] ** 2
 
             total_obj += obj
         self.objective = total_obj
@@ -208,13 +209,13 @@ class Optimization:
             # system constraints
             for i in range(1, self.params.N):
                 a_mat, b_mat, d_vec = self.sys.linearize_at(
-                    x_pred_all[k][:, i],
-                    u_pred_all[k][:, i]
+                    x_pred_all[k][:, i].reshape(-1, 1),
+                    u_pred_all[k][:, i].reshape(-1, 1)
                 )
                 self.opti.subject_to(
                     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
-                            a_mat @ self.states[k][:, i - 1] +
-                            b_mat @ self.inputs[k][:, i - 1] +
+                            cs.mtimes(a_mat, self.states[k][:, i - 1]) +
+                            cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
                             d_vec)
                 )
                 self.opti.subject_to(
@@ -224,20 +225,21 @@ class Optimization:
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
             self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
 
-    def solve(self, x, theta, x_pred_all, theta_pred_all, u_pred_all):
+    def solve(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
+        self.set_vars()
         self.set_obj(x_pred_all, theta_pred_all)
         self.opti.minimize(self.objective)
-        self.set_constrs(x, theta, x_pred_all, theta_pred_all, u_pred_all)
+        self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
 
         self.opti.solver("ipopt")
         solution = self.opti.solve()
         x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N) for i in
                       range(self.num_veh)]
-        theta_pred_all = [np.array(solution.value(self.theta[i])).reshape(1, self.params.N) for i in
+        theta_pred_all = [np.array(solution.value(self.theta[i])).reshape(self.params.N, 1) for i in
                           range(self.num_veh)]
-        u_pred_all = [np.array(solution.value(self.inputs[i])).reshape(self.sys.m, self.params.N - 1) for i in
+        u_pred_all = [np.array(solution.value(self.inputs[i])).reshape(self.sys.m, self.params.N) for i in
                       range(self.num_veh)]
-        u_vir_pred_all = [np.array(solution.value(self.vir_inputs[i])).reshape(1, self.params.N) for i in
+        u_vir_pred_all = [np.array(solution.value(self.vir_inputs[i])).reshape(self.params.N, 1) for i in
                           range(self.num_veh)]
         return x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all
 
@@ -267,8 +269,8 @@ class Simulator:
             )
         self.opt.set_all_traj(self.all_traj)
 
-    def optimize(self):
-        pass
+    def optimize(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
+        return self.opt.solve(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
 
     def update_vehicles_states(self, x_prev_list, u_opt_list, x_bar_list, u_bar_list):
         updated_x = []
@@ -285,10 +287,19 @@ class Simulator:
         x = self.x_init_list
         theta = self.theta_init_list
         u = self.u_init_list
+        # TODO: write predictions for x, theta, and u
+        x_pred_all = [np.zeros((self.sys.n, self.params.N))]
+        theta_pred_all = [np.zeros((self.params.N, 1))]
+        u_pred_all = [np.zeros((self.sys.m, self.params.N))]
+
         for t_ind, t in enumerate(time):  # MPC loop
             xbar = copy.deepcopy(x)
             ubar = copy.deepcopy(u)
-            # optimization is solved here
+
+            x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.optimize(x, theta, x_pred_all, theta_pred_all,
+                                                                                   u_pred_all)
+            u = [upred[:, 0].reshape(-1,1) for upred in u_pred_all]
+
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
 
     def get_results(self):

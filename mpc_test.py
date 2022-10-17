@@ -3,6 +3,7 @@ from mpc.sim import Simulator, SimParams, LinearSystem, BicycleModel, Optimizati
 import numpy as np
 
 params = SimParams()
+params.Ru = np.eye(2)
 dt = 0.1
 lf = 1
 lr = 1
