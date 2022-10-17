@@ -1,5 +1,5 @@
 import copy
-from typing import List
+from typing import List, Union
 
 import numpy as np
 from data.routes import ThetaFinder, Trajectory
@@ -8,15 +8,14 @@ import casadi as cs
 
 class SimParams:
     def __init__(self):
-        self.N = None        # prediction horizon
-        self.tf = None       # final time
-        self.d_safe = None   # safety distance
-        self.simN = None     # simulation time
-        self.qc = None       # scalar
-        self.ql = None       # scalar
-        self.q_theta = None  # scalar
-        self.Ru = None       # (m,1)
-        self.Rv = None       # scalar
+        self.N = 5  # prediction horizon
+        self.tf = 20  # final time
+        self.d_safe = 0.1  # safety distance
+        self.qc = 1  # scalar
+        self.ql = 1  # scalar
+        self.q_theta = 1  # scalar
+        self.Ru = 1  # (m,1)
+        self.Rv = 1  # scalar
 
 
 class BicycleModel:
@@ -125,12 +124,13 @@ class Optimization:
     """ class Optimization will be used in class Simulator. So, all traj, that is one of the inputs
      of class Optimization, comes from method set_vehicle_initial_conditions of class Simulator.
     """
-    def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder, all_traj: List[Trajectory]):
+
+    def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
         self.params = params
         self.sys = sys
         self.theta_finder = theta_finder
-        self.all_traj = all_traj
-        self.num_veh = len(all_traj)
+        self.all_traj: Union[List[Trajectory], None] = None
+        self.num_veh = 0
 
         self.opti = None
         self.states = None
@@ -139,6 +139,10 @@ class Optimization:
         self.theta = None
 
         self.objective = None
+
+    def set_all_traj(self, all_traj):
+        self.all_traj = all_traj
+        self.num_veh = len(all_traj)
 
     def set_vars(self):
         self.opti = cs.Opti()
@@ -227,19 +231,23 @@ class Optimization:
 
         self.opti.solver("ipopt")
         solution = self.opti.solve()
-        x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N) for i in range(self.num_veh)]
-        theta_pred_all = [np.array(solution.value(self.theta[i])).reshape(1, self.params.N) for i in range(self.num_veh)]
-        u_pred_all = [np.array(solution.value(self.inputs[i])).reshape(self.sys.m, self.params.N - 1) for i in range(self.num_veh)]
-        u_vir_pred_all = [np.array(solution.value(self.vir_inputs[i])).reshape(1, self.params.N) for i in range(self.num_veh)]
+        x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N) for i in
+                      range(self.num_veh)]
+        theta_pred_all = [np.array(solution.value(self.theta[i])).reshape(1, self.params.N) for i in
+                          range(self.num_veh)]
+        u_pred_all = [np.array(solution.value(self.inputs[i])).reshape(self.sys.m, self.params.N - 1) for i in
+                      range(self.num_veh)]
+        u_vir_pred_all = [np.array(solution.value(self.vir_inputs[i])).reshape(1, self.params.N) for i in
+                          range(self.num_veh)]
         return x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all
 
 
 class Simulator:
-    def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder, opt:Optimization):
+    def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
         self.params = params
         self.sys = sys
         self.theta_finder = theta_finder
-        self.opt = opt
+        self.opt = Optimization(self.params, self.sys, self.theta_finder)
         self.num_veh = None
         self.x_init_list = None
         self.theta_init_list = []
@@ -257,6 +265,7 @@ class Simulator:
             self.theta_init_list.append(
                 self.theta_finder.find_theta(self.x_init_list[i][0], self.x_init_list[i][1])
             )
+        self.opt.set_all_traj(self.all_traj)
 
     def optimize(self):
         pass
@@ -272,7 +281,7 @@ class Simulator:
         return updated_x, updated_theta
 
     def run(self):
-        time = np.arange(0, self.params.simN, self.sys.dt)
+        time = np.arange(0, self.params.tf, self.sys.dt)
         x = self.x_init_list
         theta = self.theta_init_list
         u = self.u_init_list
