@@ -254,7 +254,7 @@ class Simulator:
         self.x_init_list = None
         self.theta_init_list = []
         self.u_init_list = []
-        self.all_traj = []
+        self.all_traj = []  # here, all_traj belongs to class Simulator.
 
     def set_vehicle_initial_conditions(self, x_init_list):
         self.num_veh = len(x_init_list)
@@ -267,7 +267,7 @@ class Simulator:
             self.theta_init_list.append(
                 self.theta_finder.find_theta(self.x_init_list[i][0], self.x_init_list[i][1])
             )
-        self.opt.set_all_traj(self.all_traj)
+        self.opt.set_all_traj(self.all_traj) # here, I assign value to all_traj that belongs to class Optimization.
 
     def optimize(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         return self.opt.solve(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
@@ -281,6 +281,10 @@ class Simulator:
             updated_x.append(x)
             updated_theta.append(theta)
         return updated_x, updated_theta
+
+    def get_prediction(self):
+        # x = np.matlib.repmat(x0, 1, N+1)
+        pass
 
     def run(self):
         time = np.arange(0, self.params.tf, self.sys.dt)
@@ -301,6 +305,7 @@ class Simulator:
             u = [upred[:, 0].reshape(-1,1) for upred in u_pred_all]
 
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
+            # TODO: I should write function "x{k} = unWrapX0(x{k})", based on Liniger's code
 
     def get_results(self):
         pass
