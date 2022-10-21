@@ -16,6 +16,7 @@ class SimParams:
         self.q_theta = 1  # scalar
         self.Ru = 1  # (m,1)
         self.Rv = 1  # scalar
+        self.vx0 = 0.5  #initial veicle speed in x-axis
 
 
 class BicycleModel:
@@ -283,8 +284,18 @@ class Simulator:
         return updated_x, updated_theta
 
     def get_prediction(self):
-        # x = np.matlib.repmat(x0, 1, N+1)
-        pass
+        x0 = 1
+        theta0 = self.theta_init_list
+        x_pred = np.tile(x0, 1, self.params.N+1)
+        theta_pred = np.tile(theta0, self.params.N+1, 1)
+
+        for i in range(2, self.params.N+1):
+            theta_pred[i] = theta0[i-1] + self.sys.dt * self.params.vx0
+
+        u_pred = np.zeros((self.sys.m, self.params.N))
+        u_vir_pred = np.zeros((self.params.N, 1))
+        return u_pred, u_vir_pred, theta_pred
+
 
     def run(self):
         time = np.arange(0, self.params.tf, self.sys.dt)
