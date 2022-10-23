@@ -16,7 +16,7 @@ class SimParams:
         self.q_theta = 1  # scalar
         self.Ru = 1  # (m,1)
         self.Rv = 1  # scalar
-        self.vx0 = 0.5  #initial veicle speed in x-axis
+        self.vx0 = 0.5  # initial veicle speed in x-axis
 
 
 class BicycleModel:
@@ -47,7 +47,7 @@ class BicycleModel:
                     [float(self.xbar[3] * np.sin(self.xbar[2] + beta))],
                     [float(self.xbar[3] * np.sin(beta) / self.lr)],
                     [float(self.ubar[0])]]
-        xbar_dot = np.array(xbar_dot, dtype = float)
+        xbar_dot = np.array(xbar_dot, dtype=float)
         return xbar_dot
 
     def f_a(self):
@@ -56,7 +56,7 @@ class BicycleModel:
                  [0, 0, self.xbar[3] * np.cos(self.xbar[2] + beta), np.sin(self.xbar[2] + beta)],
                  [0, 0, 0, np.sin(beta) / self.lr],
                  [0, 0, 0, 0]]
-        a_mat = np.array(a_mat, dtype = float)
+        a_mat = np.array(a_mat, dtype=float)
         return a_mat
 
     def f_b(self):
@@ -65,7 +65,7 @@ class BicycleModel:
                  [0, gamma * self.xbar[3] * np.cos(self.xbar[2] + beta)],
                  [0, gamma * np.cos(beta)],
                  [1, 0]]
-        b_mat = np.array(b_mat, dtype = float)
+        b_mat = np.array(b_mat, dtype=float)
         return b_mat
 
     def f_d(self):
@@ -268,7 +268,7 @@ class Simulator:
             self.theta_init_list.append(
                 self.theta_finder.find_theta(self.x_init_list[i][0], self.x_init_list[i][1])
             )
-        self.opt.set_all_traj(self.all_traj) # here, I assign value to all_traj that belongs to class Optimization.
+        self.opt.set_all_traj(self.all_traj)  # here, I assign value to all_traj that belongs to class Optimization.
 
     def optimize(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         return self.opt.solve(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
@@ -283,18 +283,40 @@ class Simulator:
             updated_theta.append(theta)
         return updated_x, updated_theta
 
-    def get_prediction(self):
-        x0 = 1
-        theta0 = self.theta_init_list
-        x_pred = np.tile(x0, 1, self.params.N+1)
-        theta_pred = np.tile(theta0, self.params.N+1, 1)
+    def _get_prediction(self, x0, theta0, traj):
+        x_pred = np.tile(x0, 1, self.params.N)
+        theta_pred = np.tile(theta0, self.params.N, 1)
 
-        for i in range(2, self.params.N+1):
-            theta_pred[i] = theta0[i-1] + self.sys.dt * self.params.vx0
+        for i in range(1, self.params.N):
+            theta_next = theta0[i - 1] + self.sys.dt * self.params.vx0
+            phi_next = np.atan2(traj.d_lut_y(theta_next, 0), traj.d_lut_x(theta_next, 0))
+            if (x0[2, i - 1] - phi_next) < - np.pi:
+                phi_next = phi_next - 2 * np.pi
+            if (x0[2, i - 1] - phi_next) > np.pi:
+                phi_next = phi_next + 2 * np.pi
+            x_pred[:, i] = np.array([[traj.lut_x(theta_next)],
+                                     [traj.lut_y(theta_next)],
+                                     [phi_next],
+                                     [self.params.vx0]], dtype=float).reshape(-1,
+                                                                                  1)  # probably changing to row format (1, -1)
+            theta_pred[i] = theta_next
 
-        u_pred = np.zeros((self.sys.m, self.params.N))
-        u_vir_pred = np.zeros((self.params.N, 1))
-        return u_pred, u_vir_pred, theta_pred
+        return x_pred, theta_pred
+
+    def get_prediction_all_vehicles(self):
+        x_pred_all = []
+        theta_pred_all = []
+        for i in range(self.num_veh):
+            x_pred, theta_pred = self._get_prediction(self.x_init_list[i], self.theta_init_list[i], self.all_traj[i])
+            x_pred_all.append(x_pred)
+            theta_pred_all.append(theta_pred)
+
+        u_pred_all = [np.zeros((self.sys.m, self.params.N)) for _ in range(self.num_veh)]
+        u_vir_pred_all = [np.zeros((self.params.N, 1)) for _ in range(self.num_veh)]
+        return x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all
+
+    def shift_prediction(self):
+        pass
 
 
     def run(self):
@@ -302,10 +324,8 @@ class Simulator:
         x = self.x_init_list
         theta = self.theta_init_list
         u = self.u_init_list
-        # TODO: write predictions for x, theta, and u
-        x_pred_all = [np.zeros((self.sys.n, self.params.N))]
-        theta_pred_all = [np.zeros((self.params.N, 1))]
-        u_pred_all = [np.zeros((self.sys.m, self.params.N))]
+        # write predictions for x, theta, and u
+        x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.get_prediction_all_vehicles()
 
         for t_ind, t in enumerate(time):  # MPC loop
             xbar = copy.deepcopy(x)
@@ -313,10 +333,11 @@ class Simulator:
 
             x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.optimize(x, theta, x_pred_all, theta_pred_all,
                                                                                    u_pred_all)
-            u = [upred[:, 0].reshape(-1,1) for upred in u_pred_all]
+            u = [upred[:, 0].reshape(-1, 1) for upred in u_pred_all]
 
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
-            # TODO: I should write function "x{k} = unWrapX0(x{k})", based on Liniger's code
+            # TODO: I should write function "x{k} = unWra
+            #  pX0(x{k})", based on Liniger's code
 
     def get_results(self):
         pass
