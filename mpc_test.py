@@ -4,7 +4,7 @@ import numpy as np
 
 params = SimParams()
 params.Ru = np.eye(2)
-dt = 0.1
+dt = 0.01
 lf = 1
 lr = 1
 byc_model = BicycleModel(dt, lf, lr)
