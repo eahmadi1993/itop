@@ -336,6 +336,12 @@ class Simulator:
 
         return x_pred_shifted_all, theta_pred_shifted_all, u_pred_shifted_all, u_vir_pred_shifted_all
 
+    def _unwrap_x0(self, x0):
+        if x0[2] > np.pi:
+            x0[2] = x0[2] - 2 * np.pi
+        if x0[2] <= - np.pi:
+            x0[2] = x0[2] + 2 * np.pi
+        return x0
 
     def run(self):
         time = np.arange(0, self.params.tf, self.sys.dt)
@@ -358,8 +364,8 @@ class Simulator:
             u = [upred[:, 0].reshape(-1, 1) for upred in u_pred_all]
 
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
-            # TODO: I should write function "x{k} = unWra
-            #  pX0(x{k})", based on Liniger's code
+            # I wrote function "unwrap_x0(x)", based on Liniger's code
+            x = self._unwrap_x0(x)
 
     def get_results(self):
         pass
