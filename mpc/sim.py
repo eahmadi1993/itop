@@ -286,7 +286,6 @@ class Simulator:
     def _get_prediction(self, x0, theta0, traj):
         x_pred = np.tile(x0, 1, self.params.N)
         theta_pred = np.tile(theta0, self.params.N, 1)
-
         for i in range(1, self.params.N):
             theta_next = theta0[i - 1] + self.sys.dt * self.params.vx0
             phi_next = np.atan2(traj.d_lut_y(theta_next, 0), traj.d_lut_x(theta_next, 0))
@@ -315,8 +314,27 @@ class Simulator:
         u_vir_pred_all = [np.zeros((self.params.N, 1)) for _ in range(self.num_veh)]
         return x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all
 
-    def shift_prediction(self):
-        pass
+    def _get_shift_prediction(self, x_pred, theta_pred, u_pred, u_vir_pred):
+        x_pred_shifted = np.concatenate((x_pred[:, 1:], np.zeros((self.sys.n, 1))), axis=1)
+        theta_pred_shifted = np.concatenate((theta_pred[1:], np.zeros((1, 1))), axis=0)
+        u_pred_shifted = np.concatenate((u_pred[:, 1:], np.zeros((self.sys.m, 1))), axis=1)
+        u_vir_pred_shifted = np.concatenate((u_vir_pred[1:], np.zeros((1, 1))), axis=0)
+        return x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted
+
+    def get_shift_prediction_all_vehicles(self, x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all):
+        x_pred_shifted_all = []
+        theta_pred_shifted_all = []
+        u_pred_shifted_all = []
+        u_vir_pred_shifted_all = []
+        for i in range(self.num_veh):
+            x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted = \
+                self._get_shift_prediction(x_pred_all[:, i], theta_pred_all[i], u_pred_all[:, i], u_vir_pred_all[i])
+            x_pred_shifted_all.append(x_pred_shifted)
+            theta_pred_shifted_all.append(theta_pred_shifted)
+            u_pred_shifted_all.append(u_pred_shifted)
+            u_vir_pred_shifted_all.append(u_vir_pred_shifted)
+
+        return x_pred_shifted_all, theta_pred_shifted_all, u_pred_shifted_all, u_vir_pred_shifted_all
 
 
     def run(self):
@@ -333,6 +351,10 @@ class Simulator:
 
             x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.optimize(x, theta, x_pred_all, theta_pred_all,
                                                                                    u_pred_all)
+            # new: for linearization of model and objective function
+            x_pred_shifted_all, theta_pred_shifted_all, u_pred_shifted_all, u_vir_pred_shifted_all = \
+                self.get_shift_prediction_all_vehicles(x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all)
+
             u = [upred[:, 0].reshape(-1, 1) for upred in u_pred_all]
 
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
