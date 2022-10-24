@@ -357,15 +357,14 @@ class Simulator:
 
             x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.optimize(x, theta, x_pred_all, theta_pred_all,
                                                                                    u_pred_all)
-            # new: for linearization of model and objective function
-            x_pred_shifted_all, theta_pred_shifted_all, u_pred_shifted_all, u_vir_pred_shifted_all = \
+            # new: obtaining predictions of states and inputs for linearizing model and objective function
+            x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = \
                 self.get_shift_prediction_all_vehicles(x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all)
 
             u = [upred[:, 0].reshape(-1, 1) for upred in u_pred_all]
 
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
-            # I wrote function "unwrap_x0(x)", based on Liniger's code
-            x = self._unwrap_x0(x)
+            x = self._unwrap_x0(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
 
     def get_results(self):
         pass
