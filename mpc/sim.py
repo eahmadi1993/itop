@@ -185,7 +185,6 @@ class Optimization:
         return ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l
 
     def set_obj(self, x_pred_all, theta_pred_all):
-
         total_obj = 0
         for k in range(self.num_veh):
             obj = 0
@@ -195,8 +194,12 @@ class Optimization:
                     float(theta_pred_all[k][i]),
                     self.all_traj[k]
                 )
-                ec = ec_bar + cs.dot(nabla_ec_bar, self.states[k][:, i]) + d_p_c * self.theta[k][i]
-                el = el_bar + cs.dot(nabla_el_bar, self.states[k][:, i]) + d_p_l * self.theta[k][i]
+                ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
+                     + cs.dot(nabla_ec_bar, self.states[k][:, i]) \
+                     + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
+                el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
+                     + cs.dot(nabla_el_bar, self.states[k][:, i]) \
+                     + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
                 obj += self.params.qc * ec ** 2 + \
                        self.params.ql * el ** 2 - \
                        self.params.q_theta * self.theta[k][i] + \
