@@ -24,6 +24,9 @@ print(system.update_states(x, u, xbar, ubar))
 # num_lane = 2
 # lane_width = 10
 # tr = Track(lane_width, num_lane)
+# tr.load_track()
+# print(tr.track_data["sn"][0][0])  #32.1
+
 # sp = Spline(tr)
 # tf = ThetaFinder(tr, sp)
 # tf.set_initial_conditions(-12.3125, 35.3)
@@ -32,7 +35,7 @@ print(system.update_states(x, u, xbar, ubar))
 
 
 
-#Eli: I wrote it for calculating teack lengt of each approach
+#Eli: I wrote it for calculating track lengt of each approach
 # trc_len = []
 # for key, value in sp.my_traj.items():
 #     trc_len.append(float(value.cl[-1]))

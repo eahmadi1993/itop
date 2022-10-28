@@ -133,7 +133,7 @@ class ThetaFinder:
         self.init_y = None
         self.paths = {
             "n": ["ns", "ne", "nw"],
-            "s": ["sn", "se", "sw"],
+            "s": ["sw", "se", "sn"],
             "e": ["es", "en", "ew"],
             "w": ["we", "ws", "wn"]
         }
@@ -147,18 +147,19 @@ class ThetaFinder:
         """ this function determines the direction each vehicle enter the plaza, south(s), north(n), east(e), and west(w)
         w, s, e, and n are the keys of dictionary paths and each of them has three values
         for example "s" has sn, se, and sw"""
-        if self.init_x < 0 and self.init_y < 0:
+        if self.init_x < 32.1 - 10:
             return "w"
-        if self.init_x > 0 and self.init_y < 0:
+        if self.init_y < 29.2 - 10:
             return "s"
-        if self.init_x > 0 and self.init_y > 0:
+        if self.init_x > 32.1 + 10:
             return "e"
-        if self.init_x < 0 and self.init_y > 0:
+        if self.init_y > 29.2 + 10:
             return "n"
 
     def find_track_traj(self):
         path = self.find_path()
         tr_name = random.choice(self.paths[path])
+        # tr_name = "se"
         trc_data = self.track.track_data[tr_name]
         trj_data = self.spline.my_traj[tr_name]
         return trc_data, trj_data

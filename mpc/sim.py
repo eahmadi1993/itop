@@ -16,7 +16,7 @@ class SimParams:
         self.q_theta = 1  # scalar
         self.Ru = 1  # (m,1)
         self.Rv = 1  # scalar
-        self.vx0 = 0.5  # initial veicle speed in x-axis
+        self.vx0 = 0.05  # initial veicle speed in x-axis
 
 
 class BicycleModel:
@@ -125,7 +125,6 @@ class Optimization:
     """ class Optimization will be used in class Simulator. So, all traj, that is one of the inputs
      of class Optimization, comes from method set_vehicle_initial_conditions of class Simulator.
     """
-
     def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
         self.params = params
         self.sys = sys
@@ -226,7 +225,13 @@ class Optimization:
                 self.opti.subject_to(
                     self.theta[k][i] == self.theta[k][i - 1] + self.vir_inputs[k][i]
                 )
-                self.opti.subject_to(self.vir_inputs[k][i] >= 1e-3)
+                self.opti.subject_to(self.vir_inputs[k][i] >= 0.0001)
+                # self.opti.subject_to(self.theta[k][i] >= 0)
+                self.opti.subject_to(self.states[k][3, i] >= 0)
+                self.opti.subject_to(self.states[k][3, i] <= 1)
+                # self.opti.subject_to(self.inputs[k][0, i] >= -0.0002)
+                # self.opti.subject_to(self.inputs[k][0, i] <= 0.0002)
+
 
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
@@ -282,8 +287,10 @@ class Simulator:
     def update_vehicles_states(self, x_prev_list, u_opt_list, x_bar_list, u_bar_list):
         updated_x = []
         updated_theta = []
+        sys_nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
         for i in range(self.num_veh):
-            x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])
+            # x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])
+            x = sys_nl.update_nls_states(x_prev_list[i], u_opt_list[i])
             theta = self.theta_finder.find_theta(x[0], x[1])
             updated_x.append(x)
             updated_theta.append(theta)
