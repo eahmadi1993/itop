@@ -111,14 +111,32 @@ class NonlinearSystem:
         return beta
 
     def update_nls_states(self, x, u):
-        beta = self._compute_beta(u)
-        f = [[float(x[3] * np.cos(x[2] + beta))],
-             [float(x[3] * np.sin(x[2] + beta))],
-             [float(x[3] * np.sin(beta) / self.lr)],
-             [float(u[0])]]
-        f = np.array(f)
-        x = x + self.dt * f
-        return x
+        # beta = self._compute_beta(u)
+        # f = [[float(x[3] * np.cos(x[2] + beta))],
+        #      [float(x[3] * np.sin(x[2] + beta))],
+        #      [float(x[3] * np.sin(beta) / self.lr)],
+        #      [float(u[0])]]
+        # f = np.array(f)
+        # x = x + self.dt * f
+
+        self.A = np.array(
+            [
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0]
+            ]
+        )
+        self.B = np.array(
+            [
+                [0, 0],
+                [0, 0],
+                [1, 0],
+                [0, 1]
+            ]
+        )
+
+        return x + self.dt * (self.A @ x + self.B @ u)
 
     def _compute_beta_casadi(self, u):
         """β is the angle of the current velocity of the center of mass
@@ -156,6 +174,23 @@ class Optimization:
         self.theta = None
 
         self.objective = None
+
+        self.A = np.array(
+            [
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0]
+            ]
+        )
+        self.B = np.array(
+            [
+                [0, 0],
+                [0, 0],
+                [1, 0],
+                [0, 1]
+            ]
+        )
 
     def set_all_traj(self, all_traj):
         self.all_traj = all_traj
@@ -204,7 +239,7 @@ class Optimization:
         total_obj = 0
         for k in range(self.num_veh):
             obj = 0
-            for i in range(1, self.params.N):
+            for i in range(1, self.params.N + 1):
                 # ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
                 #     x_pred_all[k][:, i].reshape(-1, 1),
                 #     float(theta_pred_all[k][i]),
@@ -216,7 +251,7 @@ class Optimization:
                 # el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
                 #      + cs.dot(nabla_el_bar, self.states[k][:, i]) \
                 #      + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
-                #
+
                 phi = cs.arctan2(self.all_traj[k].d_lut_y(self.theta[k][i], 0),
                                  self.all_traj[k].d_lut_x(self.theta[k][i], 0))
 
@@ -226,11 +261,9 @@ class Optimization:
                 el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
                      cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
 
-                obj += self.params.qc * ec ** 2 + \
-                       self.params.ql * el ** 2 - \
-                       self.params.q_theta * self.theta[k][i]  # + \
-                # cs.dot(self.inputs[k][:, i], cs.mtimes(self.params.Ru, self.inputs[k][:, i])) + \
-                # self.params.Rv * self.vir_inputs[k][i] ** 2
+                obj += self.params.qc * ec ** 2 + self.params.ql * el ** 2 - self.params.q_theta * self.theta[k][i] + \
+                 cs.dot(self.inputs[k][:, i - 1], cs.mtimes(self.params.Ru, self.inputs[k][:, i - 1])) + \
+                 self.params.Rv * self.vir_inputs[k][i - 1] ** 2
 
             total_obj += obj
         self.objective = total_obj
@@ -251,9 +284,16 @@ class Optimization:
                 #             d_vec)
                 # )
 
+                # self.opti.subject_to(
+                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
+                #         self.states[k][:, i - 1], self.inputs[k][:, i - 1]
+                #     )
+                # )
+
                 self.opti.subject_to(
-                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
-                        self.states[k][:, i - 1], self.inputs[k][:, i - 1]
+                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
+                            cs.mtimes(self.A, self.states[k][:, i - 1]) +
+                            cs.mtimes(self.B, self.inputs[k][:, i - 1])
                     )
                 )
 
@@ -262,17 +302,17 @@ class Optimization:
                 )
 
                 # self.opti.subject_to(self.theta[k][i] >= 0)
-                # self.opti.subject_to(self.states[k][3, i] >= -10)
-                # self.opti.subject_to(self.states[k][3, i] <= 10)
-
-                # initial condition constraints
-                self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
-                self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
+                self.opti.subject_to(self.states[k][3, i] >= -10)
+                self.opti.subject_to(self.states[k][3, i] <= 10)
 
             for i in range(self.params.N):
                 self.opti.subject_to(self.vir_inputs[k][i] >= 0)
-            # self.opti.subject_to(self.inputs[k][0, i] >= -0.02)
-            # self.opti.subject_to(self.inputs[k][0, i] <= 0.02)
+            #     self.opti.subject_to(self.inputs[k][0, i] >= -2)
+            #     self.opti.subject_to(self.inputs[k][0, i] <= 2)
+
+            # initial condition constraints
+            self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
+            self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
 
     def solve(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         self.set_vars()
@@ -325,6 +365,9 @@ class Simulator:
         updated_x = []
         updated_theta = []
         sys_nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
+
+
+
         for i in range(self.num_veh):
             # x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])
             x = sys_nl.update_nls_states(x_prev_list[i], u_opt_list[i])
