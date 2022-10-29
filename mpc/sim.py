@@ -120,11 +120,28 @@ class NonlinearSystem:
         x = x + self.dt * f
         return x
 
+    def _compute_beta_casadi(self, u):
+        """β is the angle of the current velocity of the center of mass
+         with respect to the longitudinal axis of the vehicle. """
+        alpha = self.lr / (self.lf + self.lr)
+        beta = cs.arctan(alpha * cs.tan(u[1]))
+        return beta
+
+    def update_nls_states_casadi(self, x, u):
+        beta = self._compute_beta_casadi(u)
+        f = [x[3] * cs.cos(x[2] + beta),
+             x[3] * cs.sin(x[2] + beta),
+             x[3] * cs.sin(beta) / self.lr,
+             u[0]]
+        f = cs.vcat(f)
+        return f
+
 
 class Optimization:
     """ class Optimization will be used in class Simulator. So, all traj, that is one of the inputs
      of class Optimization, comes from method set_vehicle_initial_conditions of class Simulator.
     """
+
     def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
         self.params = params
         self.sys = sys
@@ -146,8 +163,8 @@ class Optimization:
 
     def set_vars(self):
         self.opti = cs.Opti()
-        self.states = [self.opti.variable(self.sys.n, self.params.N) for _ in range(self.num_veh)]
-        self.theta = [self.opti.variable(1, self.params.N) for _ in range(self.num_veh)]
+        self.states = [self.opti.variable(self.sys.n, self.params.N + 1) for _ in range(self.num_veh)]
+        self.theta = [self.opti.variable(1, self.params.N + 1) for _ in range(self.num_veh)]
         self.inputs = [self.opti.variable(self.sys.m, self.params.N) for _ in range(self.num_veh)]
         self.vir_inputs = [self.opti.variable(1, self.params.N) for _ in range(self.num_veh)]
 
@@ -187,55 +204,75 @@ class Optimization:
         total_obj = 0
         for k in range(self.num_veh):
             obj = 0
-            for i in range(self.params.N):
-                ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
-                    x_pred_all[k][:, i].reshape(-1, 1),
-                    float(theta_pred_all[k][i]),
-                    self.all_traj[k]
-                )
-                ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
-                     + cs.dot(nabla_ec_bar, self.states[k][:, i]) \
-                     + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
-                el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
-                     + cs.dot(nabla_el_bar, self.states[k][:, i]) \
-                     + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
+            for i in range(1, self.params.N):
+                # ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
+                #     x_pred_all[k][:, i].reshape(-1, 1),
+                #     float(theta_pred_all[k][i]),
+                #     self.all_traj[k]
+                # )
+                # ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) + \
+                #      cs.dot(nabla_ec_bar, self.states[k][:, i]) \
+                #      + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
+                # el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
+                #      + cs.dot(nabla_el_bar, self.states[k][:, i]) \
+                #      + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
+                #
+                phi = cs.arctan2(self.all_traj[k].d_lut_y(self.theta[k][i], 0),
+                                 self.all_traj[k].d_lut_x(self.theta[k][i], 0))
+
+                ec = cs.sin(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
+                     cs.cos(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
+
+                el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
+                     cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
+
                 obj += self.params.qc * ec ** 2 + \
                        self.params.ql * el ** 2 - \
-                       self.params.q_theta * self.theta[k][i] + \
-                       cs.dot(self.inputs[k][:, i], cs.mtimes(self.params.Ru, self.inputs[k][:, i])) + \
-                       self.params.Rv * self.vir_inputs[k][i] ** 2
+                       self.params.q_theta * self.theta[k][i]  # + \
+                # cs.dot(self.inputs[k][:, i], cs.mtimes(self.params.Ru, self.inputs[k][:, i])) + \
+                # self.params.Rv * self.vir_inputs[k][i] ** 2
 
             total_obj += obj
         self.objective = total_obj
 
     def set_constrs(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
+        nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
         for k in range(self.num_veh):
             # system constraints
-            for i in range(1, self.params.N):
-                a_mat, b_mat, d_vec = self.sys.linearize_at(
-                    x_pred_all[k][:, i].reshape(-1, 1),
-                    u_pred_all[k][:, i].reshape(-1, 1)
-                )
+            for i in range(1, self.params.N + 1):
+                # a_mat, b_mat, d_vec = self.sys.linearize_at(
+                #     x_pred_all[k][:, i].reshape(-1, 1),
+                #     u_pred_all[k][:, i].reshape(-1, 1)
+                # )
+                # self.opti.subject_to(
+                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
+                #             cs.mtimes(a_mat, self.states[k][:, i - 1]) +
+                #             cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
+                #             d_vec)
+                # )
+
                 self.opti.subject_to(
-                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
-                            cs.mtimes(a_mat, self.states[k][:, i - 1]) +
-                            cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
-                            d_vec)
+                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
+                        self.states[k][:, i - 1], self.inputs[k][:, i - 1]
+                    )
                 )
+
                 self.opti.subject_to(
-                    self.theta[k][i] == self.theta[k][i - 1] + self.vir_inputs[k][i]
+                    self.theta[k][i] == self.theta[k][i - 1] + self.vir_inputs[k][i - 1]
                 )
-                self.opti.subject_to(self.vir_inputs[k][i] >= 0.0001)
+
                 # self.opti.subject_to(self.theta[k][i] >= 0)
-                self.opti.subject_to(self.states[k][3, i] >= 0)
-                self.opti.subject_to(self.states[k][3, i] <= 1)
-                # self.opti.subject_to(self.inputs[k][0, i] >= -0.0002)
-                # self.opti.subject_to(self.inputs[k][0, i] <= 0.0002)
+                # self.opti.subject_to(self.states[k][3, i] >= -10)
+                # self.opti.subject_to(self.states[k][3, i] <= 10)
 
+                # initial condition constraints
+                self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
+                self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
 
-            # initial condition constraints
-            self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
-            self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
+            for i in range(self.params.N):
+                self.opti.subject_to(self.vir_inputs[k][i] >= 0)
+            # self.opti.subject_to(self.inputs[k][0, i] >= -0.02)
+            # self.opti.subject_to(self.inputs[k][0, i] <= 0.02)
 
     def solve(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         self.set_vars()
@@ -245,9 +282,9 @@ class Optimization:
 
         self.opti.solver("ipopt")
         solution = self.opti.solve()
-        x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N) for i in
+        x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N + 1) for i in
                       range(self.num_veh)]
-        theta_pred_all = [np.array(solution.value(self.theta[i])).reshape(self.params.N, 1) for i in
+        theta_pred_all = [np.array(solution.value(self.theta[i])).reshape(self.params.N + 1, 1) for i in
                           range(self.num_veh)]
         u_pred_all = [np.array(solution.value(self.inputs[i])).reshape(self.sys.m, self.params.N) for i in
                       range(self.num_veh)]
@@ -297,19 +334,24 @@ class Simulator:
         return updated_x, updated_theta
 
     def _get_prediction(self, x0, theta0, traj):
-        x_pred = np.tile(x0, (1, self.params.N))
-        theta_pred = np.tile(theta0, (self.params.N, 1))
-        for i in range(1, self.params.N):
+        x_pred = np.tile(x0, (1, self.params.N + 1))
+        theta_pred = np.tile(theta0, (self.params.N + 1, 1))
+        for i in range(1, self.params.N + 1):
             theta_next = theta_pred[i - 1] + self.sys.dt * self.params.vx0
+
             phi_next = np.arctan2(traj.d_lut_y(theta_next, 0), traj.d_lut_x(theta_next, 0))
+
             if (x_pred[2, i - 1] - phi_next) < - np.pi:
                 phi_next = phi_next - 2 * np.pi
+
             if (x_pred[2, i - 1] - phi_next) > np.pi:
                 phi_next = phi_next + 2 * np.pi
+
             x_pred[:, i] = np.array([[traj.lut_x(theta_next)],
                                      [traj.lut_y(theta_next)],
                                      [phi_next],
                                      [self.params.vx0]], dtype = float).reshape(-1, )
+
             theta_pred[i] = theta_next
 
         return x_pred, theta_pred
@@ -364,6 +406,8 @@ class Simulator:
         return x_all_unwrap
 
     def run(self):
+        XX = []
+        YY = []
         time = np.arange(0, self.params.tf, self.sys.dt)
         x = self.x_init_list
         theta = self.theta_init_list
@@ -390,6 +434,9 @@ class Simulator:
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
 
             x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
+            XX.append(x[0][0])
+            YY.append(x[0][1])
+        return XX, YY, self.all_traj
 
     def get_results(self):
         pass

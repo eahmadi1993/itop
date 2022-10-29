@@ -66,6 +66,7 @@ class Spline:
 
     def get_traj(self):
         for tr_name, tr_data in self.track.track_data.items():
+            # if tr_name == "es":
             traj = self.splinify(tr_data)
             self.my_traj[tr_name] = traj
         return self.my_traj
@@ -158,8 +159,8 @@ class ThetaFinder:
 
     def find_track_traj(self):
         path = self.find_path()
-        tr_name = random.choice(self.paths[path])
-        # tr_name = "se"
+        # tr_name = random.choice(self.paths[path])
+        tr_name = "nw"
         trc_data = self.track.track_data[tr_name]
         trj_data = self.spline.my_traj[tr_name]
         return trc_data, trj_data
