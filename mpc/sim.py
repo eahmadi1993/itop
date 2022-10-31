@@ -16,7 +16,7 @@ class SimParams:
         self.q_theta = 1  # scalar
         self.Ru = 1  # (m,1)
         self.Rv = 1  # scalar
-        self.vx0 = 0.05  # initial veicle speed in x-axis
+        self.vx0 = 0.5  # initial veicle speed in x-axis
 
 
 class BicycleModel:
@@ -38,7 +38,7 @@ class BicycleModel:
              with respect to the longitudinal axis of the vehicle. """
         alpha = self.lr / (self.lf + self.lr)
         beta = np.arctan(alpha * np.tan(self.ubar[1]))
-        gamma = alpha / (np.cos(self.ubar[1]) ** 2 * (1 + alpha ** 2 * np.tan(self.ubar[1]) ** 2))
+        gamma = alpha / ((np.cos(self.ubar[1]) ** 2) * (1 + (alpha ** 2) * (np.tan(self.ubar[1]) ** 2)))
         return beta, gamma
 
     def _compute_xbar_dot(self):
@@ -47,7 +47,7 @@ class BicycleModel:
                     [float(self.xbar[3] * np.sin(self.xbar[2] + beta))],
                     [float(self.xbar[3] * np.sin(beta) / self.lr)],
                     [float(self.ubar[0])]]
-        xbar_dot = np.array(xbar_dot, dtype = float)
+        xbar_dot = np.array(xbar_dot, dtype=float)
         return xbar_dot
 
     def f_a(self):
@@ -56,16 +56,16 @@ class BicycleModel:
                  [0, 0, self.xbar[3] * np.cos(self.xbar[2] + beta), np.sin(self.xbar[2] + beta)],
                  [0, 0, 0, np.sin(beta) / self.lr],
                  [0, 0, 0, 0]]
-        a_mat = np.array(a_mat, dtype = float)
+        a_mat = np.array(a_mat, dtype=float)
         return a_mat
 
     def f_b(self):
         beta, gamma = self._compute_beta_gamma()
         b_mat = [[0, -gamma * self.xbar[3] * np.sin(self.xbar[2] + beta)],
                  [0, gamma * self.xbar[3] * np.cos(self.xbar[2] + beta)],
-                 [0, gamma * np.cos(beta)],
+                 [0, (self.xbar[3] / self.lr) * gamma * np.cos(beta)],
                  [1, 0]]
-        b_mat = np.array(b_mat, dtype = float)
+        b_mat = np.array(b_mat, dtype=float)
         return b_mat
 
     def f_d(self):
@@ -83,18 +83,18 @@ class LinearSystem:
         self.m = self.model.m
         self.n = self.model.n
 
-    def update_states(self, x, u, xbar, ubar):
-        a_mat, b_mat, d_vec = self.linearize_at(xbar, ubar)
-        x = x + self.dt * (a_mat @ x + b_mat @ u + d_vec)
-        x = np.array([float(item) for item in x]).reshape(-1, 1)
-        return x
-
     def linearize_at(self, xbar, ubar):
         self.model.set_lin_points(xbar, ubar)
         a_mat = self.model.f_a()
         b_mat = self.model.f_b()
         d_vec = self.model.f_d()
         return a_mat, b_mat, d_vec
+
+    def update_states(self, x, u, xbar, ubar):
+        a_mat, b_mat, d_vec = self.linearize_at(xbar, ubar)
+        x = x + self.dt * (a_mat @ x + b_mat @ u + d_vec)
+        x = np.array([float(item) for item in x]).reshape(-1, 1)
+        return x
 
 
 class NonlinearSystem:
@@ -111,32 +111,32 @@ class NonlinearSystem:
         return beta
 
     def update_nls_states(self, x, u):
-        # beta = self._compute_beta(u)
-        # f = [[float(x[3] * np.cos(x[2] + beta))],
-        #      [float(x[3] * np.sin(x[2] + beta))],
-        #      [float(x[3] * np.sin(beta) / self.lr)],
-        #      [float(u[0])]]
-        # f = np.array(f)
-        # x = x + self.dt * f
-
-        self.A = np.array(
-            [
-                [0, 0, 1, 0],
-                [0, 0, 0, 1],
-                [0, 0, 0, 0],
-                [0, 0, 0, 0]
-            ]
-        )
-        self.B = np.array(
-            [
-                [0, 0],
-                [0, 0],
-                [1, 0],
-                [0, 1]
-            ]
-        )
-
-        return x + self.dt * (self.A @ x + self.B @ u)
+        beta = self._compute_beta(u)
+        f = [[float(x[3] * np.cos(x[2] + beta))],
+             [float(x[3] * np.sin(x[2] + beta))],
+             [float(x[3] * np.sin(beta) / self.lr)],
+             [float(u[0])]]
+        f = np.array(f)
+        x = x + self.dt * f
+        return x
+        # self.A = np.array(
+        #     [
+        #         [0, 0, 1, 0],
+        #         [0, 0, 0, 1],
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 0]
+        #     ]
+        # )
+        # self.B = np.array(
+        #     [
+        #         [0, 0],
+        #         [0, 0],
+        #         [1, 0],
+        #         [0, 1]
+        #     ]
+        # )
+        #
+        # return x + self.dt * (self.A @ x + self.B @ u)
 
     def _compute_beta_casadi(self, u):
         """β is the angle of the current velocity of the center of mass
@@ -207,7 +207,8 @@ class Optimization:
         phi = np.arctan2(traj.d_lut_y(theta_bar, 0), traj.d_lut_x(theta_bar, 0))
         gamma_1 = (traj.dd_lut_y(theta_bar, 0, 0) * traj.d_lut_x(theta_bar, 0)) - \
                   (traj.d_lut_y(theta_bar, 0) * traj.dd_lut_x(theta_bar, 0, 0))
-        gamma_2 = (1 + phi ** 2) * traj.dd_lut_x(theta_bar, 0, 0)
+        aux = traj.d_lut_y(theta_bar, 0) / traj.d_lut_x(theta_bar, 0)
+        gamma_2 = (1 + aux ** 2) * traj.dd_lut_x(theta_bar, 0, 0)
         gamma = gamma_1.elements()[0] / gamma_2.elements()[0]
 
         return phi, gamma
@@ -240,30 +241,30 @@ class Optimization:
         for k in range(self.num_veh):
             obj = 0
             for i in range(1, self.params.N + 1):
-                # ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
-                #     x_pred_all[k][:, i].reshape(-1, 1),
-                #     float(theta_pred_all[k][i]),
-                #     self.all_traj[k]
-                # )
-                # ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) + \
-                #      cs.dot(nabla_ec_bar, self.states[k][:, i]) \
-                #      + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
-                # el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
-                #      + cs.dot(nabla_el_bar, self.states[k][:, i]) \
-                #      + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
+                ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
+                    x_pred_all[k][:, i].reshape(-1, 1),
+                    float(theta_pred_all[k][i]),
+                    self.all_traj[k]
+                )
+                ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) + \
+                     cs.dot(nabla_ec_bar, self.states[k][:, i]) \
+                     + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
+                el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
+                     + cs.dot(nabla_el_bar, self.states[k][:, i]) \
+                     + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
 
-                phi = cs.arctan2(self.all_traj[k].d_lut_y(self.theta[k][i], 0),
-                                 self.all_traj[k].d_lut_x(self.theta[k][i], 0))
-
-                ec = cs.sin(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
-                     cs.cos(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
-
-                el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
-                     cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
+                # phi = cs.arctan2(self.all_traj[k].d_lut_y(self.theta[k][i], 0),
+                #                  self.all_traj[k].d_lut_x(self.theta[k][i], 0))
+                #
+                # ec = cs.sin(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
+                #      cs.cos(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
+                #
+                # el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
+                #      cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
 
                 obj += self.params.qc * ec ** 2 + self.params.ql * el ** 2 - self.params.q_theta * self.theta[k][i] + \
-                 cs.dot(self.inputs[k][:, i - 1], cs.mtimes(self.params.Ru, self.inputs[k][:, i - 1])) + \
-                 self.params.Rv * self.vir_inputs[k][i - 1] ** 2
+                       cs.dot(self.inputs[k][:, i - 1], cs.mtimes(self.params.Ru, self.inputs[k][:, i - 1])) + \
+                       self.params.Rv * self.vir_inputs[k][i - 1] ** 2
 
             total_obj += obj
         self.objective = total_obj
@@ -273,16 +274,16 @@ class Optimization:
         for k in range(self.num_veh):
             # system constraints
             for i in range(1, self.params.N + 1):
-                # a_mat, b_mat, d_vec = self.sys.linearize_at(
-                #     x_pred_all[k][:, i].reshape(-1, 1),
-                #     u_pred_all[k][:, i].reshape(-1, 1)
-                # )
-                # self.opti.subject_to(
-                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
-                #             cs.mtimes(a_mat, self.states[k][:, i - 1]) +
-                #             cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
-                #             d_vec)
-                # )
+                a_mat, b_mat, d_vec = self.sys.linearize_at(
+                    x_pred_all[k][:, i - 1].reshape(-1, 1),
+                    u_pred_all[k][:, i - 1].reshape(-1, 1)
+                )
+                self.opti.subject_to(
+                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
+                            cs.mtimes(a_mat, self.states[k][:, i - 1]) +
+                            cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
+                            d_vec)
+                )
 
                 # self.opti.subject_to(
                 #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
@@ -290,25 +291,27 @@ class Optimization:
                 #     )
                 # )
 
-                self.opti.subject_to(
-                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
-                            cs.mtimes(self.A, self.states[k][:, i - 1]) +
-                            cs.mtimes(self.B, self.inputs[k][:, i - 1])
-                    )
-                )
+                # self.opti.subject_to(
+                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
+                #             cs.mtimes(self.A, self.states[k][:, i - 1]) +
+                #             cs.mtimes(self.B, self.inputs[k][:, i - 1])
+                #     )
+                # )
 
                 self.opti.subject_to(
                     self.theta[k][i] == self.theta[k][i - 1] + self.vir_inputs[k][i - 1]
                 )
 
                 # self.opti.subject_to(self.theta[k][i] >= 0)
-                self.opti.subject_to(self.states[k][3, i] >= -10)
-                self.opti.subject_to(self.states[k][3, i] <= 10)
+                self.opti.subject_to(self.states[k][3, i] >= 0)
+                self.opti.subject_to(self.states[k][3, i] <= 15)
 
             for i in range(self.params.N):
                 self.opti.subject_to(self.vir_inputs[k][i] >= 0)
-            #     self.opti.subject_to(self.inputs[k][0, i] >= -2)
-            #     self.opti.subject_to(self.inputs[k][0, i] <= 2)
+                self.opti.subject_to(self.inputs[k][1, i] >= -0.3)
+                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)
+                self.opti.subject_to(self.inputs[k][0, i] >= -3)
+                self.opti.subject_to(self.inputs[k][0, i] <= 3)
 
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
@@ -366,8 +369,6 @@ class Simulator:
         updated_theta = []
         sys_nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
 
-
-
         for i in range(self.num_veh):
             # x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])
             x = sys_nl.update_nls_states(x_prev_list[i], u_opt_list[i])
@@ -393,7 +394,7 @@ class Simulator:
             x_pred[:, i] = np.array([[traj.lut_x(theta_next)],
                                      [traj.lut_y(theta_next)],
                                      [phi_next],
-                                     [self.params.vx0]], dtype = float).reshape(-1, )
+                                     [self.params.vx0]], dtype=float).reshape(-1, )
 
             theta_pred[i] = theta_next
 
@@ -412,10 +413,11 @@ class Simulator:
         return x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all
 
     def _get_shift_prediction(self, x_pred, theta_pred, u_pred, u_vir_pred):
-        x_pred_shifted = np.concatenate((x_pred[:, 1:], np.zeros((self.sys.n, 1))), axis = 1)
-        theta_pred_shifted = np.concatenate((theta_pred[1:], np.zeros((1, 1))), axis = 0)
-        u_pred_shifted = np.concatenate((u_pred[:, 1:], np.zeros((self.sys.m, 1))), axis = 1)
-        u_vir_pred_shifted = np.concatenate((u_vir_pred[1:], np.zeros((1, 1))), axis = 0)
+        # todo: replace last zero by simulating the nonlinear system based on inputs and states from step N-1
+        x_pred_shifted = np.concatenate((x_pred[:, 1:], np.zeros((self.sys.n, 1))), axis=1)
+        theta_pred_shifted = np.concatenate((theta_pred[1:], np.zeros((1, 1))), axis=0)
+        u_pred_shifted = np.concatenate((u_pred[:, 1:], np.zeros((self.sys.m, 1))), axis=1)
+        u_vir_pred_shifted = np.concatenate((u_vir_pred[1:], np.zeros((1, 1))), axis=0)
         return x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted
 
     def get_shift_prediction_all_vehicles(self, x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all):
@@ -451,6 +453,8 @@ class Simulator:
     def run(self):
         XX = []
         YY = []
+        XX_pred = []
+        YY_pred = []
         time = np.arange(0, self.params.tf, self.sys.dt)
         x = self.x_init_list
         theta = self.theta_init_list
@@ -479,7 +483,9 @@ class Simulator:
             x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
             XX.append(x[0][0])
             YY.append(x[0][1])
-        return XX, YY, self.all_traj
+            XX_pred.append(x_pred_all[0][0])
+            YY_pred.append(x_pred_all[0][1])
+        return XX, YY, self.all_traj, XX_pred, YY_pred
 
     def get_results(self):
         pass
