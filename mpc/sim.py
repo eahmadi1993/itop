@@ -8,26 +8,26 @@ import casadi as cs
 
 class SimParams:
     def __init__(self):
-        self.N = 5  # prediction horizon
-        self.tf = 20  # final time
+        self.N = 5         # prediction horizon
+        self.tf = 20       # final time
         self.d_safe = 0.1  # safety distance
-        self.qc = 1  # scalar
-        self.ql = 1  # scalar
-        self.q_theta = 1  # scalar
-        self.Ru = 1  # (m,1)
-        self.Rv = 1  # scalar
-        self.vx0 = 0.5  # initial veicle speed in x-axis
+        self.qc = 1        # scalar
+        self.ql = 1        # scalar
+        self.q_theta = 1   # scalar
+        self.Ru = 1        # matrix (m,1)
+        self.Rv = 1        # scalar
+        self.vx0 = 0.5     # initial vehicle speed in x-axis
 
 
 class BicycleModel:
     def __init__(self, dt, lf, lr):
-        self.lf = lf  # distance from the center of the mass of the vehicle to the front axles
-        self.lr = lr  # distance from the center of the mass of the vehicle to the rear axles,
-        self.dt = dt  # discretization time
-        self.xbar = None  # linearization points
-        self.ubar = None  # linearization points
-        self.m = 2  # number of control inputs
-        self.n = 4  # number of states
+        self.lf = lf       # distance from the center of the mass of the vehicle to the front axles
+        self.lr = lr       # distance from the center of the mass of the vehicle to the rear axles,
+        self.dt = dt       # discretization time
+        self.xbar = None   # linearization points
+        self.ubar = None   # linearization points
+        self.m = 2         # number of control inputs
+        self.n = 4         # number of states
 
     def set_lin_points(self, xbar, ubar):
         self.xbar = xbar
@@ -111,6 +111,8 @@ class NonlinearSystem:
         return beta
 
     def update_nls_states(self, x, u):
+        """ this function is used in MPC loop to update the
+         system states based on the optimization output """
         beta = self._compute_beta(u)
         f = [[float(x[3] * np.cos(x[2] + beta))],
              [float(x[3] * np.sin(x[2] + beta))],
@@ -119,6 +121,42 @@ class NonlinearSystem:
         f = np.array(f)
         x = x + self.dt * f
         return x
+
+    def _compute_beta_casadi(self, u):
+        """ here, we used CasADi arctan for computing β instead of Numpy arctan"""
+        alpha = self.lr / (self.lf + self.lr)
+        beta = cs.arctan(alpha * cs.tan(u[1]))
+        return beta
+
+    def update_nls_states_casadi(self, x, u):
+        """ nonlinear bicycle model,I wrote this function to check the nonlinear MPCC """
+        beta = self._compute_beta_casadi(u)
+        f = [x[3] * cs.cos(x[2] + beta),
+             x[3] * cs.sin(x[2] + beta),
+             x[3] * cs.sin(beta) / self.lr,
+             u[0]]
+        f = cs.vcat(f)
+        return f
+
+class Optimization:
+    """ class Optimization will be used in class Simulator. So, all traj, that is one of the inputs
+     of class Optimization, comes from method set_vehicle_initial_conditions of class Simulator.
+    """
+    def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
+        self.params = params
+        self.sys = sys
+        self.theta_finder = theta_finder
+        self.all_traj: Union[List[Trajectory], None] = None
+        self.num_veh = 0
+
+        self.opti = None
+        self.states = None
+        self.inputs = None
+        self.vir_inputs = None
+        self.theta = None
+        self.objective = None
+
+        # # Particle model, that is a linear model with 4 states and 2 inputs
         # self.A = np.array(
         #     [
         #         [0, 0, 1, 0],
@@ -135,62 +173,6 @@ class NonlinearSystem:
         #         [0, 1]
         #     ]
         # )
-        #
-        # return x + self.dt * (self.A @ x + self.B @ u)
-
-    def _compute_beta_casadi(self, u):
-        """β is the angle of the current velocity of the center of mass
-         with respect to the longitudinal axis of the vehicle. """
-        alpha = self.lr / (self.lf + self.lr)
-        beta = cs.arctan(alpha * cs.tan(u[1]))
-        return beta
-
-    def update_nls_states_casadi(self, x, u):
-        beta = self._compute_beta_casadi(u)
-        f = [x[3] * cs.cos(x[2] + beta),
-             x[3] * cs.sin(x[2] + beta),
-             x[3] * cs.sin(beta) / self.lr,
-             u[0]]
-        f = cs.vcat(f)
-        return f
-
-
-class Optimization:
-    """ class Optimization will be used in class Simulator. So, all traj, that is one of the inputs
-     of class Optimization, comes from method set_vehicle_initial_conditions of class Simulator.
-    """
-
-    def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
-        self.params = params
-        self.sys = sys
-        self.theta_finder = theta_finder
-        self.all_traj: Union[List[Trajectory], None] = None
-        self.num_veh = 0
-
-        self.opti = None
-        self.states = None
-        self.inputs = None
-        self.vir_inputs = None
-        self.theta = None
-
-        self.objective = None
-
-        self.A = np.array(
-            [
-                [0, 0, 1, 0],
-                [0, 0, 0, 1],
-                [0, 0, 0, 0],
-                [0, 0, 0, 0]
-            ]
-        )
-        self.B = np.array(
-            [
-                [0, 0],
-                [0, 0],
-                [1, 0],
-                [0, 1]
-            ]
-        )
 
     def set_all_traj(self, all_traj):
         self.all_traj = all_traj
@@ -237,6 +219,7 @@ class Optimization:
         return ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l
 
     def set_obj(self, x_pred_all, theta_pred_all):
+        """ Linearized obj """
         total_obj = 0
         for k in range(self.num_veh):
             obj = 0
@@ -253,6 +236,7 @@ class Optimization:
                      + cs.dot(nabla_el_bar, self.states[k][:, i]) \
                      + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
 
+                # """ Nonlinear Obj """
                 # phi = cs.arctan2(self.all_traj[k].d_lut_y(self.theta[k][i], 0),
                 #                  self.all_traj[k].d_lut_x(self.theta[k][i], 0))
                 #
@@ -272,7 +256,7 @@ class Optimization:
     def set_constrs(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
         for k in range(self.num_veh):
-            # system constraints
+            # Linearized system constraints
             for i in range(1, self.params.N + 1):
                 a_mat, b_mat, d_vec = self.sys.linearize_at(
                     x_pred_all[k][:, i - 1].reshape(-1, 1),
@@ -285,12 +269,14 @@ class Optimization:
                             d_vec)
                 )
 
+                # Nonlinear system constraints
                 # self.opti.subject_to(
                 #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
                 #         self.states[k][:, i - 1], self.inputs[k][:, i - 1]
                 #     )
                 # )
 
+                # Particle system constraints
                 # self.opti.subject_to(
                 #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
                 #             cs.mtimes(self.A, self.states[k][:, i - 1]) +
@@ -298,20 +284,21 @@ class Optimization:
                 #     )
                 # )
 
+                # Progress constraints
                 self.opti.subject_to(
                     self.theta[k][i] == self.theta[k][i - 1] + self.vir_inputs[k][i - 1]
                 )
 
                 # self.opti.subject_to(self.theta[k][i] >= 0)
-                self.opti.subject_to(self.states[k][3, i] >= 0)
-                self.opti.subject_to(self.states[k][3, i] <= 15)
+                self.opti.subject_to(self.states[k][3, i] >= 0)   # minimum speed
+                self.opti.subject_to(self.states[k][3, i] <= 15)  # maximum speed
 
             for i in range(self.params.N):
                 self.opti.subject_to(self.vir_inputs[k][i] >= 0)
-                self.opti.subject_to(self.inputs[k][1, i] >= -0.3)
-                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)
-                self.opti.subject_to(self.inputs[k][0, i] >= -3)
-                self.opti.subject_to(self.inputs[k][0, i] <= 3)
+                self.opti.subject_to(self.inputs[k][1, i] >= -0.3)  # minimum steering angle
+                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)   # maximum steering angle
+                self.opti.subject_to(self.inputs[k][0, i] >= -3)    # minimum acceleration
+                self.opti.subject_to(self.inputs[k][0, i] <= 3)     # maximum acceleration
 
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
@@ -370,8 +357,8 @@ class Simulator:
         sys_nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
 
         for i in range(self.num_veh):
-            # x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])
-            x = sys_nl.update_nls_states(x_prev_list[i], u_opt_list[i])
+            # x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])  # based on linearized model
+            x = sys_nl.update_nls_states(x_prev_list[i], u_opt_list[i])  # based on nonlinear model
             theta = self.theta_finder.find_theta(x[0], x[1])
             updated_x.append(x)
             updated_theta.append(theta)
@@ -451,10 +438,10 @@ class Simulator:
         return x_all_unwrap
 
     def run(self):
-        XX = []
-        YY = []
-        XX_pred = []
-        YY_pred = []
+        XX = []  # defined for saving x[0]
+        YY = []  # defined for saving x[1]
+        XX_pred = []   # defined for saving x_pred[0]
+        YY_pred = []   # defined for saving x_pred[1]
         time = np.arange(0, self.params.tf, self.sys.dt)
         x = self.x_init_list
         theta = self.theta_init_list
@@ -462,7 +449,8 @@ class Simulator:
         # write predictions for x, theta, and u
         x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.get_prediction_all_vehicles()
 
-        for t_ind, t in enumerate(time):  # MPC loop
+        # MPC loop
+        for t_ind, t in enumerate(time):
             xbar = copy.deepcopy(x)
             ubar = copy.deepcopy(u)
 
@@ -474,7 +462,7 @@ class Simulator:
                                                                                    )
             u = [upred[:, 0].reshape(-1, 1) for upred in u_pred_all]
 
-            # new: obtaining predictions of states and inputs for linearizing model and objective function
+            # obtaining predictions of states and inputs for linearizing model and objective function
             x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = \
                 self.get_shift_prediction_all_vehicles(x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all)
 
