@@ -8,26 +8,26 @@ import casadi as cs
 
 class SimParams:
     def __init__(self):
-        self.N = 5         # prediction horizon
-        self.tf = 20       # final time
+        self.N = 5  # prediction horizon
+        self.tf = 20  # final time
         self.d_safe = 0.1  # safety distance
-        self.qc = 1        # scalar
-        self.ql = 1        # scalar
-        self.q_theta = 1   # scalar
-        self.Ru = 1        # matrix (m,1)
-        self.Rv = 1        # scalar
-        self.vx0 = 0.5     # initial vehicle speed in x-axis
+        self.qc = 1  # scalar
+        self.ql = 1  # scalar
+        self.q_theta = 1  # scalar
+        self.Ru = 1  # matrix (m,1)
+        self.Rv = 1  # scalar
+        self.vx0 = 0.5  # initial vehicle speed in x-axis
 
 
 class BicycleModel:
     def __init__(self, dt, lf, lr):
-        self.lf = lf       # distance from the center of the mass of the vehicle to the front axles
-        self.lr = lr       # distance from the center of the mass of the vehicle to the rear axles,
-        self.dt = dt       # discretization time
-        self.xbar = None   # linearization points
-        self.ubar = None   # linearization points
-        self.m = 2         # number of control inputs
-        self.n = 4         # number of states
+        self.lf = lf  # distance from the center of the mass of the vehicle to the front axles
+        self.lr = lr  # distance from the center of the mass of the vehicle to the rear axles,
+        self.dt = dt  # discretization time
+        self.xbar = None  # linearization points
+        self.ubar = None  # linearization points
+        self.m = 2  # number of control inputs
+        self.n = 4  # number of states
 
     def set_lin_points(self, xbar, ubar):
         self.xbar = xbar
@@ -47,7 +47,7 @@ class BicycleModel:
                     [float(self.xbar[3] * np.sin(self.xbar[2] + beta))],
                     [float(self.xbar[3] * np.sin(beta) / self.lr)],
                     [float(self.ubar[0])]]
-        xbar_dot = np.array(xbar_dot, dtype=float)
+        xbar_dot = np.array(xbar_dot, dtype = float)
         return xbar_dot
 
     def f_a(self):
@@ -56,7 +56,7 @@ class BicycleModel:
                  [0, 0, self.xbar[3] * np.cos(self.xbar[2] + beta), np.sin(self.xbar[2] + beta)],
                  [0, 0, 0, np.sin(beta) / self.lr],
                  [0, 0, 0, 0]]
-        a_mat = np.array(a_mat, dtype=float)
+        a_mat = np.array(a_mat, dtype = float)
         return a_mat
 
     def f_b(self):
@@ -65,7 +65,7 @@ class BicycleModel:
                  [0, gamma * self.xbar[3] * np.cos(self.xbar[2] + beta)],
                  [0, (self.xbar[3] / self.lr) * gamma * np.cos(beta)],
                  [1, 0]]
-        b_mat = np.array(b_mat, dtype=float)
+        b_mat = np.array(b_mat, dtype = float)
         return b_mat
 
     def f_d(self):
@@ -138,10 +138,12 @@ class NonlinearSystem:
         f = cs.vcat(f)
         return f
 
+
 class Optimization:
     """ class Optimization will be used in class Simulator. So, all traj, that is one of the inputs
      of class Optimization, comes from method set_vehicle_initial_conditions of class Simulator.
     """
+
     def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
         self.params = params
         self.sys = sys
@@ -224,27 +226,28 @@ class Optimization:
         for k in range(self.num_veh):
             obj = 0
             for i in range(1, self.params.N + 1):
-                # ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
-                #     x_pred_all[k][:, i].reshape(-1, 1),
-                #     float(theta_pred_all[k][i]),
-                #     self.all_traj[k]
-                # )
-                # ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) + \
-                #      cs.dot(nabla_ec_bar, self.states[k][:, i]) \
-                #      + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
-                # el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
-                #      + cs.dot(nabla_el_bar, self.states[k][:, i]) \
-                #      + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
+                i = i - 1
+                ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
+                    x_pred_all[k][:, i].reshape(-1, 1),
+                    float(theta_pred_all[k][i]),
+                    self.all_traj[k]
+                )
+                ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) + \
+                     cs.dot(nabla_ec_bar, self.states[k][:, i]) \
+                     + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
+                el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
+                     + cs.dot(nabla_el_bar, self.states[k][:, i]) \
+                     + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
 
                 # """ Nonlinear Obj """
-                phi = cs.arctan2(self.all_traj[k].d_lut_y(self.theta[k][i], 0),
-                                 self.all_traj[k].d_lut_x(self.theta[k][i], 0))
-
-                ec = cs.sin(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
-                     cs.cos(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
-
-                el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
-                     cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
+                # phi = cs.arctan2(self.all_traj[k].d_lut_y(self.theta[k][i], 0),
+                #                  self.all_traj[k].d_lut_x(self.theta[k][i], 0))
+                #
+                # ec = cs.sin(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
+                #      cs.cos(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
+                #
+                # el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
+                #      cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
 
                 obj += self.params.qc * ec ** 2 + self.params.ql * el ** 2 - self.params.q_theta * self.theta[k][i] + \
                        cs.dot(self.inputs[k][:, i - 1], cs.mtimes(self.params.Ru, self.inputs[k][:, i - 1])) + \
@@ -290,15 +293,15 @@ class Optimization:
                 )
 
                 # self.opti.subject_to(self.theta[k][i] >= 0)
-                self.opti.subject_to(self.states[k][3, i] >= 0)   # minimum speed
+                self.opti.subject_to(self.states[k][3, i] >= 0)  # minimum speed
                 self.opti.subject_to(self.states[k][3, i] <= 15)  # maximum speed
 
             for i in range(self.params.N):
                 self.opti.subject_to(self.vir_inputs[k][i] >= 0)
                 self.opti.subject_to(self.inputs[k][1, i] >= -0.3)  # minimum steering angle
-                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)   # maximum steering angle
-                self.opti.subject_to(self.inputs[k][0, i] >= -3)    # minimum acceleration
-                self.opti.subject_to(self.inputs[k][0, i] <= 3)     # maximum acceleration
+                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)  # maximum steering angle
+                self.opti.subject_to(self.inputs[k][0, i] >= -3)  # minimum acceleration
+                self.opti.subject_to(self.inputs[k][0, i] <= 3)  # maximum acceleration
 
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
@@ -368,7 +371,7 @@ class Simulator:
         x_pred = np.tile(x0, (1, self.params.N + 1))
         theta_pred = np.tile(theta0, (self.params.N + 1, 1))
         for i in range(1, self.params.N + 1):
-            theta_next = theta_pred[i - 1] + self.sys.dt * self.params.vx0
+            theta_next = theta_pred[i - 1] + self.params.vx0
 
             phi_next = np.arctan2(traj.d_lut_y(theta_next, 0), traj.d_lut_x(theta_next, 0))
 
@@ -381,7 +384,7 @@ class Simulator:
             x_pred[:, i] = np.array([[traj.lut_x(theta_next)],
                                      [traj.lut_y(theta_next)],
                                      [phi_next],
-                                     [self.params.vx0]], dtype=float).reshape(-1, )
+                                     [self.params.vx0]], dtype = float).reshape(-1, )
 
             theta_pred[i] = theta_next
 
@@ -401,10 +404,10 @@ class Simulator:
 
     def _get_shift_prediction(self, x_pred, theta_pred, u_pred, u_vir_pred):
         # todo: replace last zero by simulating the nonlinear system based on inputs and states from step N-1
-        x_pred_shifted = np.concatenate((x_pred[:, 1:], np.zeros((self.sys.n, 1))), axis=1)
-        theta_pred_shifted = np.concatenate((theta_pred[1:], np.zeros((1, 1))), axis=0)
-        u_pred_shifted = np.concatenate((u_pred[:, 1:], np.zeros((self.sys.m, 1))), axis=1)
-        u_vir_pred_shifted = np.concatenate((u_vir_pred[1:], np.zeros((1, 1))), axis=0)
+        x_pred_shifted = np.concatenate((x_pred[:, 1:], np.zeros((self.sys.n, 1))), axis = 1)
+        theta_pred_shifted = np.concatenate((theta_pred[1:], np.zeros((1, 1))), axis = 0)
+        u_pred_shifted = np.concatenate((u_pred[:, 1:], np.zeros((self.sys.m, 1))), axis = 1)
+        u_vir_pred_shifted = np.concatenate((u_vir_pred[1:], np.zeros((1, 1))), axis = 0)
         return x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted
 
     def get_shift_prediction_all_vehicles(self, x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all):
@@ -440,8 +443,8 @@ class Simulator:
     def run(self):
         XX = []  # defined for saving x[0]
         YY = []  # defined for saving x[1]
-        XX_pred = []   # defined for saving x_pred[0]
-        YY_pred = []   # defined for saving x_pred[1]
+        XX_pred = []  # defined for saving x_pred[0]
+        YY_pred = []  # defined for saving x_pred[1]
         time = np.arange(0, self.params.tf, self.sys.dt)
         x = self.x_init_list
         theta = self.theta_init_list
