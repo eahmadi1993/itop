@@ -226,7 +226,6 @@ class Optimization:
         for k in range(self.num_veh):
             obj = 0
             for i in range(1, self.params.N + 1):
-                i = i - 1
                 ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
                     x_pred_all[k][:, i].reshape(-1, 1),
                     float(theta_pred_all[k][i]),
@@ -262,7 +261,7 @@ class Optimization:
             for i in range(1, self.params.N + 1):
                 # Linearized system constraints
                 a_mat, b_mat, d_vec = self.sys.linearize_at(
-                    x_pred_all[k][:, i - 1].reshape(-1, 1),
+                    x_pred_all[k][:, i].reshape(-1, 1),
                     u_pred_all[k][:, i - 1].reshape(-1, 1)
                 )
                 self.opti.subject_to(
@@ -402,22 +401,58 @@ class Simulator:
         u_vir_pred_all = [np.zeros((self.params.N, 1)) for _ in range(self.num_veh)]
         return x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all
 
-    def _get_shift_prediction(self, x_pred, theta_pred, u_pred, u_vir_pred):
+    # def _get_shift_prediction(self, x_pred, theta_pred, u_pred, u_vir_pred):
+    #     # todo: replace last zero by simulating the nonlinear system based on inputs and states from step N-1
+    #     x_pred_shifted = np.concatenate((x_pred[:, 1:], np.zeros((self.sys.n, 1))), axis = 1)
+    #     theta_pred_shifted = np.concatenate((theta_pred[1:], np.zeros((1, 1))), axis = 0)
+    #     u_pred_shifted = np.concatenate((u_pred[:, 1:], np.zeros((self.sys.m, 1))), axis = 1)
+    #     u_vir_pred_shifted = np.concatenate((u_vir_pred[1:], np.zeros((1, 1))), axis = 0)
+    #     return x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted
+    def _get_shift_prediction(self, x_pred, theta_pred, u_pred, u_vir_pred, current_x, current_theta):
         # todo: replace last zero by simulating the nonlinear system based on inputs and states from step N-1
-        x_pred_shifted = np.concatenate((x_pred[:, 1:], np.zeros((self.sys.n, 1))), axis = 1)
-        theta_pred_shifted = np.concatenate((theta_pred[1:], np.zeros((1, 1))), axis = 0)
-        u_pred_shifted = np.concatenate((u_pred[:, 1:], np.zeros((self.sys.m, 1))), axis = 1)
-        u_vir_pred_shifted = np.concatenate((u_vir_pred[1:], np.zeros((1, 1))), axis = 0)
-        return x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted
+        n = self.sys.n
+        m = self.sys.m
+        N = self.params.N
 
-    def get_shift_prediction_all_vehicles(self, x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all):
+        x_temp = np.zeros((n, N + 1))
+        theta_temp = np.zeros((N + 1, 1))
+        u_temp = np.zeros((m, N))
+        u_vir_temp = np.zeros((N, 1))
+
+        x_temp[:, 0] = current_x.T
+        theta_temp[0] = current_theta
+        u_temp[:, 0] = u_pred[:, 1]
+        u_vir_temp[0] = u_vir_pred[1]
+
+        for i in range(1, N - 1):
+            x_temp[:, i] = x_pred[:, i + 1]
+            theta_temp[i] = theta_pred[i + 1]
+            u_temp[:, i] = u_pred[:, i + 1]
+            u_vir_temp[i] = u_vir_pred[i + 1]
+
+        i = N - 1
+        x_temp[:, i] = x_pred[:, i + 1]
+        theta_temp[i] = theta_pred[i + 1]
+        u_temp[:, i] = u_pred[:, i]
+        u_vir_temp[i] = u_vir_pred[i]
+
+        nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
+        i = N
+        x_temp[:, i] = nl.update_nls_states(x_pred[:, N].reshape(-1,1), u_pred[:, N-1].reshape(-1,1)).T
+        theta_temp[i] = theta_pred[N] + u_vir_pred[N-1]
+
+        return x_temp, theta_temp, u_temp, u_vir_temp
+
+    def get_shift_prediction_all_vehicles(self, x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all, current_x,
+                                          current_theta):
         x_pred_shifted_all = []
         theta_pred_shifted_all = []
         u_pred_shifted_all = []
         u_vir_pred_shifted_all = []
         for i in range(self.num_veh):
             x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted = \
-                self._get_shift_prediction(x_pred_all[i], theta_pred_all[i], u_pred_all[i], u_vir_pred_all[i])
+                self._get_shift_prediction(x_pred_all[i], theta_pred_all[i], u_pred_all[i], u_vir_pred_all[i],
+                                           current_x[i], current_theta[i])
             x_pred_shifted_all.append(x_pred_shifted)
             theta_pred_shifted_all.append(theta_pred_shifted)
             u_pred_shifted_all.append(u_pred_shifted)
@@ -457,6 +492,10 @@ class Simulator:
             xbar = copy.deepcopy(x)
             ubar = copy.deepcopy(u)
 
+            # obtaining predictions of states and inputs for linearizing model and objective function
+            x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = \
+                self.get_shift_prediction_all_vehicles(x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all, x, theta)
+
             x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.optimize(x,
                                                                                    theta,
                                                                                    x_pred_all,
@@ -465,13 +504,11 @@ class Simulator:
                                                                                    )
             u = [upred[:, 0].reshape(-1, 1) for upred in u_pred_all]
 
-            # obtaining predictions of states and inputs for linearizing model and objective function
-            x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = \
-                self.get_shift_prediction_all_vehicles(x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all)
-
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
-
             x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
+
+
+
             XX.append(x[0][0])
             YY.append(x[0][1])
             XX_pred.append(x_pred_all[0][0])
