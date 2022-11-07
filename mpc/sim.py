@@ -224,27 +224,27 @@ class Optimization:
         for k in range(self.num_veh):
             obj = 0
             for i in range(1, self.params.N + 1):
-                ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
-                    x_pred_all[k][:, i].reshape(-1, 1),
-                    float(theta_pred_all[k][i]),
-                    self.all_traj[k]
-                )
-                ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) + \
-                     cs.dot(nabla_ec_bar, self.states[k][:, i]) \
-                     + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
-                el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
-                     + cs.dot(nabla_el_bar, self.states[k][:, i]) \
-                     + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
+                # ec_bar, nabla_ec_bar, d_p_c, el_bar, nabla_el_bar, d_p_l = self._compute_contouring_lag_constants(
+                #     x_pred_all[k][:, i].reshape(-1, 1),
+                #     float(theta_pred_all[k][i]),
+                #     self.all_traj[k]
+                # )
+                # ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) + \
+                #      cs.dot(nabla_ec_bar, self.states[k][:, i]) \
+                #      + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
+                # el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
+                #      + cs.dot(nabla_el_bar, self.states[k][:, i]) \
+                #      + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
 
                 # """ Nonlinear Obj """
-                # phi = cs.arctan2(self.all_traj[k].d_lut_y(self.theta[k][i], 0),
-                #                  self.all_traj[k].d_lut_x(self.theta[k][i], 0))
-                #
-                # ec = cs.sin(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
-                #      cs.cos(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
-                #
-                # el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
-                #      cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
+                phi = cs.arctan2(self.all_traj[k].d_lut_y(self.theta[k][i], 0),
+                                 self.all_traj[k].d_lut_x(self.theta[k][i], 0))
+
+                ec = cs.sin(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
+                     cs.cos(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
+
+                el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
+                     cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
 
                 obj += self.params.qc * ec ** 2 + self.params.ql * el ** 2 - self.params.q_theta * self.theta[k][i] + \
                        cs.dot(self.inputs[k][:, i - 1], cs.mtimes(self.params.Ru, self.inputs[k][:, i - 1])) + \
@@ -256,8 +256,8 @@ class Optimization:
     def set_constrs(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
         for k in range(self.num_veh):
-            # Linearized system constraints
             for i in range(1, self.params.N + 1):
+                # Linearized system constraints
                 a_mat, b_mat, d_vec = self.sys.linearize_at(
                     x_pred_all[k][:, i - 1].reshape(-1, 1),
                     u_pred_all[k][:, i - 1].reshape(-1, 1)
