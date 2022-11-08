@@ -181,7 +181,7 @@ class Optimization:
         self.num_veh = len(all_traj)
 
     def set_vars(self):
-        self.opti = cs.Opti()
+        self.opti = cs.Opti('conic')
         self.states = [self.opti.variable(self.sys.n, self.params.N + 1) for _ in range(self.num_veh)]
         self.theta = [self.opti.variable(1, self.params.N + 1) for _ in range(self.num_veh)]
         self.inputs = [self.opti.variable(self.sys.m, self.params.N) for _ in range(self.num_veh)]
@@ -293,7 +293,7 @@ class Optimization:
 
                 # self.opti.subject_to(self.theta[k][i] >= 0)
                 self.opti.subject_to(self.states[k][3, i] >= 0)  # minimum speed
-                self.opti.subject_to(self.states[k][3, i] <= 15)  # maximum speed
+                self.opti.subject_to(self.states[k][3, i] <= 5)  # maximum speed
 
             for i in range(self.params.N):
                 self.opti.subject_to(self.vir_inputs[k][i] >= 0)
@@ -312,7 +312,7 @@ class Optimization:
         self.opti.minimize(self.objective)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
 
-        self.opti.solver("ipopt")
+        self.opti.solver('qpOASES'.lower())
         solution = self.opti.solve()
         x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N + 1) for i in
                       range(self.num_veh)]
