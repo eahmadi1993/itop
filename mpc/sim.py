@@ -4,6 +4,7 @@ from typing import List, Union
 import numpy as np
 from data.routes import ThetaFinder, Trajectory
 import casadi as cs
+from gurobipy.gurobipy import GRB, Model
 
 
 class SimParams:
@@ -181,11 +182,12 @@ class Optimization:
         self.num_veh = len(all_traj)
 
     def set_vars(self):
-        self.opti = cs.Opti('conic')
-        self.states = [self.opti.variable(self.sys.n, self.params.N + 1) for _ in range(self.num_veh)]
-        self.theta = [self.opti.variable(1, self.params.N + 1) for _ in range(self.num_veh)]
-        self.inputs = [self.opti.variable(self.sys.m, self.params.N) for _ in range(self.num_veh)]
-        self.vir_inputs = [self.opti.variable(1, self.params.N) for _ in range(self.num_veh)]
+        self.opti = Model()
+        self.states = [self.opti.addMVar((self.sys.n, self.params.N + 1), lb = -GRB.INFINITY) for _ in
+                       range(self.num_veh)]
+        self.theta = [self.opti.addMVar((self.params.N + 1,), lb = -GRB.INFINITY) for _ in range(self.num_veh)]
+        self.inputs = [self.opti.addMVar((self.sys.m, self.params.N), lb = -GRB.INFINITY) for _ in range(self.num_veh)]
+        self.vir_inputs = [self.opti.addMVar((self.params.N,), lb = -GRB.INFINITY) for _ in range(self.num_veh)]
 
     def _compute_phi_gamma(self, theta_bar, traj: Trajectory):
         phi = np.arctan2(traj.d_lut_y(theta_bar, 0), traj.d_lut_x(theta_bar, 0))
@@ -231,11 +233,11 @@ class Optimization:
                     float(theta_pred_all[k][i]),
                     self.all_traj[k]
                 )
-                ec = ec_bar - cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1)) + \
-                     cs.dot(nabla_ec_bar, self.states[k][:, i]) \
+                ec = ec_bar - float(cs.dot(nabla_ec_bar, x_pred_all[k][:, i].reshape(-1, 1))) + \
+                     nabla_ec_bar.T @ self.states[k][:, i] \
                      + d_p_c * self.theta[k][i] - d_p_c * float(theta_pred_all[k][i])
                 el = el_bar - cs.dot(nabla_el_bar, x_pred_all[k][:, i].reshape(-1, 1)) \
-                     + cs.dot(nabla_el_bar, self.states[k][:, i]) \
+                     + nabla_el_bar.T @ self.states[k][:, i] \
                      + d_p_l * self.theta[k][i] - d_p_l * float(theta_pred_all[k][i])
 
                 # """ Nonlinear Obj """
@@ -248,9 +250,10 @@ class Optimization:
                 # el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
                 #      cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
 
-                obj += self.params.qc * ec ** 2 + self.params.ql * el ** 2 - self.params.q_theta * self.theta[k][i] + \
-                       cs.dot(self.inputs[k][:, i - 1], cs.mtimes(self.params.Ru, self.inputs[k][:, i - 1])) + \
-                       self.params.Rv * self.vir_inputs[k][i - 1] ** 2
+                obj += self.params.qc * ec @ ec + self.params.ql * el @ el - self.params.q_theta * self.theta[k][
+                    i]  # + \
+                # cs.dot(self.inputs[k][:, i - 1], cs.mtimes(self.params.Ru, self.inputs[k][:, i - 1])) + \
+                # self.params.Rv * self.vir_inputs[k][i - 1] ** 2
 
             total_obj += obj
         self.objective = total_obj
@@ -264,12 +267,19 @@ class Optimization:
                     x_pred_all[k][:, i].reshape(-1, 1),
                     u_pred_all[k][:, i - 1].reshape(-1, 1)
                 )
-                self.opti.subject_to(
-                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
-                            cs.mtimes(a_mat, self.states[k][:, i - 1]) +
-                            cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
-                            d_vec)
-                )
+                # self.opti.addMConstr(
+                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
+                #             a_mat@ self.states[k][:, i - 1] +
+                #             b_mat@ self.inputs[k][:, i - 1] +
+                #             d_vec)
+                # )
+                for j in range(self.sys.n):
+                    self.opti.addConstr(
+                        self.states[k][j, i] == self.states[k][j, i - 1] + self.sys.dt * (
+                                a_mat[j, :] @ self.states[k][:, i - 1] +
+                                b_mat[j, :] @ self.inputs[k][:, i - 1] +
+                                d_vec[j])
+                    )
 
                 # Nonlinear system constraints
                 # self.opti.subject_to(
@@ -287,40 +297,39 @@ class Optimization:
                 # )
 
                 # Progress constraints
-                self.opti.subject_to(
+                self.opti.addConstr(
                     self.theta[k][i] == self.theta[k][i - 1] + self.vir_inputs[k][i - 1]
                 )
 
                 # self.opti.subject_to(self.theta[k][i] >= 0)
-                self.opti.subject_to(self.states[k][3, i] >= 0)  # minimum speed
-                self.opti.subject_to(self.states[k][3, i] <= 5)  # maximum speed
+                self.opti.addConstr(self.states[k][3, i] >= 0)  # minimum speed
+                self.opti.addConstr(self.states[k][3, i] <= 5)  # maximum speed
 
             for i in range(self.params.N):
-                self.opti.subject_to(self.vir_inputs[k][i] >= 0)
-                self.opti.subject_to(self.inputs[k][1, i] >= -0.3)  # minimum steering angle
-                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)  # maximum steering angle
-                self.opti.subject_to(self.inputs[k][0, i] >= -3)  # minimum acceleration
-                self.opti.subject_to(self.inputs[k][0, i] <= 3)  # maximum acceleration
+                self.opti.addConstr(self.vir_inputs[k][i] >= 0)
+                self.opti.addConstr(self.inputs[k][1, i] >= -0.3)  # minimum steering angle
+                self.opti.addConstr(self.inputs[k][1, i] <= 0.3)  # maximum steering angle
+                self.opti.addConstr(self.inputs[k][0, i] >= -3)  # minimum acceleration
+                self.opti.addConstr(self.inputs[k][0, i] <= 3)  # maximum acceleration
 
             # initial condition constraints
-            self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
-            self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
+            for j in range(self.sys.n):
+                self.opti.addConstr(self.states[k][j, 0] == x_prev_all[k][j])
+            self.opti.addConstr(self.theta[k][0] == theta_prev_all[k])
 
     def solve(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         self.set_vars()
         self.set_obj(x_pred_all, theta_pred_all)
-        self.opti.minimize(self.objective)
+        self.opti.setObjective(self.objective, GRB.MINIMIZE)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
 
-        self.opti.solver('qpOASES'.lower())
-        solution = self.opti.solve()
-        x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N + 1) for i in
+        self.opti.optimize()
+
+        x_pred_all = [self.states[i].X.reshape(self.sys.n, self.params.N + 1) for i in range(self.num_veh)]
+        theta_pred_all = [self.theta[i].X.reshape(self.params.N + 1, 1) for i in range(self.num_veh)]
+        u_pred_all = [self.inputs[i].X.reshape(self.sys.m, self.params.N) for i in
                       range(self.num_veh)]
-        theta_pred_all = [np.array(solution.value(self.theta[i])).reshape(self.params.N + 1, 1) for i in
-                          range(self.num_veh)]
-        u_pred_all = [np.array(solution.value(self.inputs[i])).reshape(self.sys.m, self.params.N) for i in
-                      range(self.num_veh)]
-        u_vir_pred_all = [np.array(solution.value(self.vir_inputs[i])).reshape(self.params.N, 1) for i in
+        u_vir_pred_all = [self.vir_inputs[i].X.reshape(self.params.N, 1) for i in
                           range(self.num_veh)]
         return x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all
 
@@ -438,8 +447,8 @@ class Simulator:
 
         nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
         i = N
-        x_temp[:, i] = nl.update_nls_states(x_pred[:, N].reshape(-1,1), u_pred[:, N-1].reshape(-1,1)).T
-        theta_temp[i] = theta_pred[N] + u_vir_pred[N-1]
+        x_temp[:, i] = nl.update_nls_states(x_pred[:, N].reshape(-1, 1), u_pred[:, N - 1].reshape(-1, 1)).T
+        theta_temp[i] = theta_pred[N] + u_vir_pred[N - 1]
 
         return x_temp, theta_temp, u_temp, u_vir_temp
 
@@ -506,8 +515,6 @@ class Simulator:
 
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
             x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
-
-
 
             XX.append(x[0][0])
             YY.append(x[0][1])
