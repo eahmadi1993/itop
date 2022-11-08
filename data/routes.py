@@ -25,8 +25,10 @@ class Track:
         north_south = genfromtxt('ns.csv', delimiter = ',')
 
         east_west = genfromtxt('ew.csv', delimiter = ',')
-        east_north = genfromtxt('en.csv', delimiter = ',')
-        east_south = genfromtxt('es.csv', delimiter = ',')
+        east_north = genfromtxt('en_new.csv', delimiter=',')
+        east_south = genfromtxt('es_new.csv', delimiter=',')
+        # east_north = genfromtxt('en.csv', delimiter = ',')
+        # east_south = genfromtxt('es.csv', delimiter = ',')
 
         self.track_data["we"] = west_east
         self.track_data["wn"] = west_north
