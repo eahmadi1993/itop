@@ -322,7 +322,7 @@ class Optimization:
         self.set_obj(x_pred_all, theta_pred_all)
         self.opti.setObjective(self.objective, GRB.MINIMIZE)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
-
+        # self.opti.setParam("NonConvex",2)
         self.opti.optimize()
 
         x_pred_all = [self.states[i].X.reshape(self.sys.n, self.params.N + 1) for i in range(self.num_veh)]
