@@ -307,8 +307,8 @@ class Optimization:
 
             for i in range(self.params.N):
                 self.opti.addConstr(self.vir_inputs[k][i] >= 0)
-                self.opti.addConstr(self.inputs[k][1, i] >= -0.3)  # minimum steering angle
-                self.opti.addConstr(self.inputs[k][1, i] <= 0.3)  # maximum steering angle
+                self.opti.addConstr(self.inputs[k][1, i] >= -0.5)  # minimum steering angle
+                self.opti.addConstr(self.inputs[k][1, i] <= 0.5)  # maximum steering angle
                 self.opti.addConstr(self.inputs[k][0, i] >= -3)  # minimum acceleration
                 self.opti.addConstr(self.inputs[k][0, i] <= 3)  # maximum acceleration
 

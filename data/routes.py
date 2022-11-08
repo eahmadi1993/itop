@@ -160,7 +160,7 @@ class ThetaFinder:
     def find_track_traj(self):
         path = self.find_path()
         # tr_name = random.choice(self.paths[path])
-        tr_name = "ws"
+        tr_name = "en"
         trc_data = self.track.track_data[tr_name]
         trj_data = self.spline.my_traj[tr_name]
         return trc_data, trj_data
