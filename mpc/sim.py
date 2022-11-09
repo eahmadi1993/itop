@@ -358,17 +358,24 @@ class Optimization:
                         )
 
                         self.opti.subject_to(
-                            cs.mtimes(poly_a, self.lambdas[i][j][:, k] + self.s_vars[i][j][:, k] == 0)
+                            cs.mtimes(cs.transpose(poly_a), self.lambdas[i][j][:, k]) + self.s_vars[i][j][:, k] == 0
                         )
                         self.opti.subject_to(
-                            cs.mtimes(poly_a_neighbour, self.lambdas[j][i][:, k] + self.s_vars[i][j][:, k] == 0)
+                            cs.mtimes(cs.transpose(poly_a_neighbour), self.lambdas[j][i][:, k]) + self.s_vars[i][j][:,
+                                                                                                  k] == 0
                         )
 
                         self.opti.subject_to(self.lambdas[i][j][:, k] >= 0)
                         self.opti.subject_to(self.lambdas[j][i][:, k] >= 0)
 
+                        expression = 0
+                        for num_inputs in range(self.sys.m):
+                            expression += cs.power(self.s_vars[i][j][num_inputs, :], 2)
+
                         self.opti.subject_to(
-                            cs.norm_2(self.s_vars[i][j][:, k]) <= 1
+                            # cs.norm_2(self.s_vars[i][j][:, k]) <= 1
+                            expression <= 1
+
                         )
 
                 # for j in range(self.num_veh):
