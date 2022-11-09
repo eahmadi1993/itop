@@ -251,9 +251,8 @@ class Optimization:
                 #      cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
 
                 obj += self.params.qc * ec @ ec + self.params.ql * el @ el - self.params.q_theta * self.theta[k][
-                    i]  # + \
-                # cs.dot(self.inputs[k][:, i - 1], cs.mtimes(self.params.Ru, self.inputs[k][:, i - 1])) + \
-                # self.params.Rv * self.vir_inputs[k][i - 1] ** 2
+                    i] + self.inputs[k][:, i - 1]@(self.params.Ru@self.inputs[k][:, i - 1]) + \
+                       self.params.Rv * self.vir_inputs[k][i - 1] ** 2
 
             total_obj += obj
         self.objective = total_obj

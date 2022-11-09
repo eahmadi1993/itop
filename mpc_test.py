@@ -4,14 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 params = SimParams()
-params.N = 40
-params.tf = 10
-params.ql = 100
-params.qc = 10
+params.N = 5
+params.tf = 20
+params.ql = .1
+params.qc = .02
 params.Rv = 0.002
-params.q_theta = 0.1
+params.q_theta = 2
 params.Ru = np.zeros((2, 2))
-params.Ru[0, 0] = 5
+params.Ru[0, 0] = 1
 params.Ru[1, 1] = 0.5
 dt = 0.1
 lf = 1.005
@@ -28,8 +28,8 @@ sim = Simulator(params, sys, theta_finder)
 
 # x_init = np.array([27, 70, -np.pi /2, 0.1]).reshape(-1, 1)  # for North vehicles
 # x_init = np.array([36, -10, np.pi /2, 0.5]).reshape(-1, 1)  # for South vehicles
-x_init = np.array([90, 25, np.pi, 0.5]).reshape(-1, 1)       # NOT worked! for East vehicles
-# x_init = np.array([-10, 25, 0, 0]).reshape(-1, 1)        # NOT worked! for West vehicles
+# x_init = np.array([55, 25, np.pi, 0.5]).reshape(-1, 1)       # NOT worked! for East vehicles
+x_init = np.array([-10, 25, 0, 0]).reshape(-1, 1)        # NOT worked! for West vehicles
 
 sim.set_vehicle_initial_conditions([x_init])
 
