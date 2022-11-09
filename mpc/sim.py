@@ -165,6 +165,8 @@ class Optimization:
     """
 
     def __init__(self, params: SimParams, sys: LinearSystem, theta_finder: ThetaFinder):
+        self.s_vars = None
+        self.lambdas = None
         self.params = params
         self.sys = sys
         self.theta_finder = theta_finder
@@ -202,11 +204,22 @@ class Optimization:
         self.num_veh = len(all_traj)
 
     def set_vars(self):
-        self.opti = cs.Opti('conic')
+        self.opti = cs.Opti()
         self.states = [self.opti.variable(self.sys.n, self.params.N + 1) for _ in range(self.num_veh)]
         self.theta = [self.opti.variable(1, self.params.N + 1) for _ in range(self.num_veh)]
         self.inputs = [self.opti.variable(self.sys.m, self.params.N) for _ in range(self.num_veh)]
         self.vir_inputs = [self.opti.variable(1, self.params.N) for _ in range(self.num_veh)]
+
+        self.lambdas = [[[]] * self.num_veh for i in range(self.num_veh)]
+
+        for i in range(self.num_veh):
+            for j in range(self.num_veh):
+                self.lambdas[i][j] = self.opti.variable(self.sys.n, self.params.N)
+
+        self.s_vars = [[[]] * self.num_veh for i in range(self.num_veh)]
+        for i in range(self.num_veh):
+            for j in range(self.num_veh):
+                self.s_vars[i][j] = self.opti.variable(self.sys.m, self.params.N)
 
     def _compute_phi_gamma(self, theta_bar, traj: Trajectory):
         phi = np.arctan2(traj.d_lut_y(theta_bar, 0), traj.d_lut_x(theta_bar, 0))
@@ -328,14 +341,52 @@ class Optimization:
             self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
 
     def set_v2v_constrs(self):
-        pass
+
+        for i in range(self.num_veh):
+            for j in range(self.num_veh):
+                for k in range(self.params.N):
+                    poly_a, poly_b = self.polytope.get_polytope_A_b(self.states[i][0, k], self.states[i][1, k],
+                                                                    self.states[i][2, k])
+                    if j != i:
+                        poly_a_neighbour, poly_b_neighbour = self.polytope.get_polytope_A_b(self.states[j][0, k],
+                                                                                            self.states[j][1, k],
+                                                                                            self.states[j][2, k])
+                        self.opti.subject_to(
+                            -cs.dot(poly_b, self.lambdas[i][j][:, k]) - cs.dot(poly_b_neighbour,
+                                                                               self.lambdas[j][i][:,
+                                                                               k]) >= self.params.d_safe
+                        )
+
+                        self.opti.subject_to(
+                            cs.mtimes(poly_a, self.lambdas[i][j][:, k] + self.s_vars[i][j][:, k] == 0)
+                        )
+                        self.opti.subject_to(
+                            cs.mtimes(poly_a_neighbour, self.lambdas[j][i][:, k] + self.s_vars[i][j][:, k] == 0)
+                        )
+
+                        self.opti.subject_to(self.lambdas[i][j][:, k] >= 0)
+                        self.opti.subject_to(self.lambdas[j][i][:, k] >= 0)
+
+                        self.opti.subject_to(
+                            cs.norm_2(self.s_vars[i][j][:, k]) <= 1
+                        )
+
+                # for j in range(self.num_veh):
+                #     if j != i:
+                #         poly_a_neighbour, poly_b_neighbour = self.polytope.get_polytope_A_b(self.states[j][0, i],
+                #                                                                             self.states[j][1, i],
+                #                                                                             self.states[j][2, i])
+                #         self.opti.subject_to(
+                #             cs.dot(-poly_b, self.lambdas[i][l][:, i]) - cs.dot(poly_b_neighbour,
+                #                                                                self.lambdas[j][i][:, i])
+                #         )
 
     def solve(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         self.set_vars()
         self.set_obj(x_pred_all, theta_pred_all)
         self.opti.minimize(self.objective)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
-
+        self.set_v2v_constrs()
         self.opti.solver('ipopt'.lower())
         solution = self.opti.solve()
         x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N + 1) for i in
