@@ -6,6 +6,24 @@ from data.routes import ThetaFinder, Trajectory, IntersectionLayout
 import casadi as cs
 import drawnow
 
+
+class Polytope:
+    def __init__(self, veh_len, veh_width):
+        self.veh_len = veh_len
+        self.veh_width = veh_width
+
+    def get_polytope_A_b(self, x, y, orientation):
+        row_1 = cs.hcat([cs.cos(orientation), -cs.sin(orientation)])
+        row_2 = cs.hcat([cs.sin(orientation), cs.cos(orientation)])
+        R = cs.vcat([row_1, row_2])
+
+        A_poly = cs.vcat([R, -R])
+
+        b_aux = np.array([self.veh_len / 2, self.veh_width / 2, self.veh_len / 2, self.veh_width / 2]).reshape(-1, 1)
+        b_poly = b_aux + cs.mtimes(A_poly, cs.vcat([x, y]))
+        return A_poly, b_poly
+
+
 class SimParams:
     def __init__(self):
         self.N = 5  # prediction horizon
@@ -28,6 +46,8 @@ class BicycleModel:
         self.ubar = None  # linearization points
         self.m = 2  # number of control inputs
         self.n = 4  # number of states
+        self.length = lf + lr
+        self.width = 1
 
     def set_lin_points(self, xbar, ubar):
         self.xbar = xbar
@@ -156,8 +176,9 @@ class Optimization:
         self.inputs = None
         self.vir_inputs = None
         self.theta = None
+        self.ca_vars = None
         self.objective = None
-
+        self.polytope = Polytope(self.sys.model.length, self.sys.model.width)
         # # Particle model, that is a linear model with 4 states and 2 inputs
         # self.A = np.array(
         #     [
@@ -298,13 +319,16 @@ class Optimization:
             for i in range(self.params.N):
                 self.opti.subject_to(self.vir_inputs[k][i] >= 0)
                 self.opti.subject_to(self.inputs[k][1, i] >= -0.3)  # minimum steering angle
-                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)   # maximum steering angle
-                self.opti.subject_to(self.inputs[k][0, i] >= -3)    # minimum acceleration
-                self.opti.subject_to(self.inputs[k][0, i] <= 3)     # maximum acceleration
+                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)  # maximum steering angle
+                self.opti.subject_to(self.inputs[k][0, i] >= -3)  # minimum acceleration
+                self.opti.subject_to(self.inputs[k][0, i] <= 3)  # maximum acceleration
 
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
             self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
+
+    def set_v2v_constrs(self):
+        pass
 
     def solve(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         self.set_vars()
@@ -312,7 +336,7 @@ class Optimization:
         self.opti.minimize(self.objective)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
 
-        self.opti.solver('qpOASES'.lower())
+        self.opti.solver('ipopt'.lower())
         solution = self.opti.solve()
         x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N + 1) for i in
                       range(self.num_veh)]
@@ -438,8 +462,8 @@ class Simulator:
 
         nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
         i = N
-        x_temp[:, i] = nl.update_nls_states(x_pred[:, N].reshape(-1,1), u_pred[:, N-1].reshape(-1,1)).T
-        theta_temp[i] = theta_pred[N] + u_vir_pred[N-1]
+        x_temp[:, i] = nl.update_nls_states(x_pred[:, N].reshape(-1, 1), u_pred[:, N - 1].reshape(-1, 1)).T
+        theta_temp[i] = theta_pred[N] + u_vir_pred[N - 1]
 
         return x_temp, theta_temp, u_temp, u_vir_temp
 
@@ -489,7 +513,6 @@ class Simulator:
 
         intersection = IntersectionLayout(self.theta_finder.track, self.theta_finder.track.lane_width, 150)
 
-
         ## drawnow code
         def draw_fig():
             # plt.show()
@@ -516,7 +539,6 @@ class Simulator:
 
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
             x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
-
 
             for i in range(self.num_veh):
                 XX[i].append(x[i][0])
