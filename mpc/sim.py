@@ -1,10 +1,10 @@
 import copy
 from typing import List, Union
-
+import matplotlib.pyplot as plt
 import numpy as np
-from data.routes import ThetaFinder, Trajectory
+from data.routes import ThetaFinder, Trajectory, IntersectionLayout
 import casadi as cs
-
+import drawnow
 
 class SimParams:
     def __init__(self):
@@ -487,6 +487,15 @@ class Simulator:
         # write predictions for x, theta, and u
         x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.get_prediction_all_vehicles()
 
+        intersection = IntersectionLayout(self.theta_finder.track, self.theta_finder.track.lane_width, 150)
+
+
+        ## drawnow code
+        def draw_fig():
+            # plt.show()
+            intersection.plot_intersection()
+            plt.plot(XX, YY)
+
         # MPC loop
         for t_ind, t in enumerate(time):
             xbar = copy.deepcopy(x)
@@ -511,6 +520,7 @@ class Simulator:
 
             XX.append(x[0][0])
             YY.append(x[0][1])
+            drawnow.drawnow(draw_fig)
             XX_pred.append(x_pred_all[0][0])
             YY_pred.append(x_pred_all[0][1])
         return XX, YY, self.all_traj, XX_pred, YY_pred

@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 class Track:
     def __init__(self, lane_width, num_lane):
         self.track_data = {}
+        self.lane_width = lane_width
+        self.num_lane = num_lane
         self.track_width = lane_width * num_lane
 
     def load_track(self):
@@ -208,7 +210,7 @@ class ThetaFinder:
     def find_track_traj(self):
         path = self.find_path()
         # tr_name = random.choice(self.paths[path])
-        tr_name = "se"
+        tr_name = "en"
         trc_data = self.track.track_data[tr_name]
         trj_data = self.spline.my_traj[tr_name]
         return trc_data, trj_data
