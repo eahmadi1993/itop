@@ -298,9 +298,9 @@ class Optimization:
             for i in range(self.params.N):
                 self.opti.subject_to(self.vir_inputs[k][i] >= 0)
                 self.opti.subject_to(self.inputs[k][1, i] >= -0.3)  # minimum steering angle
-                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)  # maximum steering angle
-                self.opti.subject_to(self.inputs[k][0, i] >= -3)  # minimum acceleration
-                self.opti.subject_to(self.inputs[k][0, i] <= 3)  # maximum acceleration
+                self.opti.subject_to(self.inputs[k][1, i] <= 0.3)   # maximum steering angle
+                self.opti.subject_to(self.inputs[k][0, i] >= -3)    # minimum acceleration
+                self.opti.subject_to(self.inputs[k][0, i] <= 3)     # maximum acceleration
 
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
@@ -476,8 +476,8 @@ class Simulator:
         return x_all_unwrap
 
     def run(self):
-        XX = []  # defined for saving x[0]
-        YY = []  # defined for saving x[1]
+        XX = [[] for i in range(self.num_veh)]  # defined for saving x[0]
+        YY = [[] for i in range(self.num_veh)]  # defined for saving x[1]
         XX_pred = []  # defined for saving x_pred[0]
         YY_pred = []  # defined for saving x_pred[1]
         time = np.arange(0, self.params.tf, self.sys.dt)
@@ -494,7 +494,8 @@ class Simulator:
         def draw_fig():
             # plt.show()
             intersection.plot_intersection()
-            plt.plot(XX, YY)
+            for i in range(self.num_veh):
+                plt.plot(XX[i], YY[i])
 
         # MPC loop
         for t_ind, t in enumerate(time):
@@ -517,13 +518,14 @@ class Simulator:
             x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
 
 
-
-            XX.append(x[0][0])
-            YY.append(x[0][1])
-            drawnow.drawnow(draw_fig)
+            for i in range(self.num_veh):
+                XX[i].append(x[i][0])
+                YY[i].append(x[i][1])
+                drawnow.drawnow(draw_fig)
             XX_pred.append(x_pred_all[0][0])
             YY_pred.append(x_pred_all[0][1])
         return XX, YY, self.all_traj, XX_pred, YY_pred
 
     def get_results(self):
+
         pass

@@ -183,10 +183,10 @@ class ThetaFinder:
         self.init_x = None
         self.init_y = None
         self.paths = {
-            "n": ["ns", "ne", "nw"],
-            "s": ["sw", "se", "sn"],
-            "e": ["es", "en", "ew"],
-            "w": ["we", "ws", "wn"]
+            "n": ["nw", "nw", "nw"],
+            "s": ["sn", "sn", "sn"],
+            "e": ["es", "es", "es"],
+            "w": ["ws", "ws", "ws"]
         }
 
     def set_initial_conditions(self, init_x, init_y):
@@ -209,8 +209,8 @@ class ThetaFinder:
 
     def find_track_traj(self):
         path = self.find_path()
-        # tr_name = random.choice(self.paths[path])
-        tr_name = "en"
+        tr_name = random.choice(self.paths[path])
+        # tr_name = "wn"
         trc_data = self.track.track_data[tr_name]
         trj_data = self.spline.my_traj[tr_name]
         return trc_data, trj_data
