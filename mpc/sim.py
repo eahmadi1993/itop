@@ -16,6 +16,7 @@ class Polytope:
         row_1 = cs.hcat([cs.cos(orientation), -cs.sin(orientation)])
         row_2 = cs.hcat([cs.sin(orientation), cs.cos(orientation)])
         R = cs.vcat([row_1, row_2])
+        R = cs.transpose(R)  # new
 
         A_poly = cs.vcat([R, -R])
 
@@ -47,7 +48,7 @@ class BicycleModel:
         self.m = 2  # number of control inputs
         self.n = 4  # number of states
         self.length = lf + lr
-        self.width = 1
+        self.width = 0.5
 
     def set_lin_points(self, xbar, ubar):
         self.xbar = xbar
@@ -224,7 +225,7 @@ class Optimization:
         phi = np.arctan2(traj.d_lut_y(theta_bar, 0), traj.d_lut_x(theta_bar, 0))
         gamma_1 = (traj.dd_lut_y(theta_bar, 0, 0) * traj.d_lut_x(theta_bar, 0)) - \
                   (traj.d_lut_y(theta_bar, 0) * traj.dd_lut_x(theta_bar, 0, 0))
-        aux = traj.d_lut_y(theta_bar, 0) / traj.d_lut_x(theta_bar, 0)
+        aux = (traj.d_lut_y(theta_bar, 0) + 1e-8) / (traj.d_lut_x(theta_bar, 0) + 1e-8)
         gamma_2 = (1 + aux ** 2) * traj.dd_lut_x(theta_bar, 0, 0)
         gamma = gamma_1.elements()[0] / (gamma_2.elements()[0] + 1e-8)
 
@@ -316,14 +317,15 @@ class Optimization:
 
                 # self.opti.subject_to(self.theta[k][i] >= 0)
                 self.opti.subject_to(self.states[k][3, i] >= 0)  # minimum speed
-                self.opti.subject_to(self.states[k][3, i] <= 5)  # maximum speed
+                self.opti.subject_to(self.states[k][3, i] <= 15)  # maximum speed
 
             for i in range(self.params.N):
                 # self.opti.subject_to(self.vir_inputs[k][i] >= 0)
-                self.opti.subject_to(self.inputs[k][1, i] >= -0.5)  # minimum steering angle
-                self.opti.subject_to(self.inputs[k][1, i] <= 0.5)  # maximum steering angle
-                self.opti.subject_to(self.inputs[k][0, i] >= -3)  # minimum acceleration
-                self.opti.subject_to(self.inputs[k][0, i] <= 3)  # maximum acceleration
+                self.opti.subject_to(self.inputs[k][1, i] >= -0.9)  # minimum steering angle
+                self.opti.subject_to(self.inputs[k][1, i] <= 0.9)  # maximum steering angle
+                self.opti.subject_to(self.inputs[k][0, i] >= -5)  # minimum acceleration
+                self.opti.subject_to(self.inputs[k][0, i] <= 5)  # maximum acceleration
+
 
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
