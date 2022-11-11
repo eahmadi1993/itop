@@ -5,15 +5,16 @@ import matplotlib.pyplot as plt
 
 params = SimParams()
 params.N = 10
-params.tf = 20
-params.ql = 100
-params.qc = 10
-params.Rv = 0.002
-params.q_theta = 0.1
+params.tf = 100
+params.ql = 0.5
+params.qc = 0.01
+params.Rv = 0.02
+params.q_theta = 0.01
 params.Ru = np.zeros((2, 2))
-params.Ru[0, 0] = 1
-params.Ru[1, 1] = 0.5
-dt = 0.1
+params.Ru[0, 0] = 10
+params.Ru[1, 1] = 10
+params.d_safe = 1
+dt = 0.2
 lf = 1.005
 lr = 1.538
 num_lane = 2
@@ -30,14 +31,14 @@ theta_finder = ThetaFinder(track, sp)
 
 sim = Simulator(params, sys, theta_finder)
 
-x_init_north = np.array([27, 70, -np.pi /2, 0.1]).reshape(-1, 1)
-x_init_south = np.array([36, -10, np.pi /2, 0.5]).reshape(-1, 1)
-x_init_east = np.array([70, 35, np.pi, 0.5]).reshape(-1, 1)
-x_init_west = np.array([-30, 25, 0, 0]).reshape(-1, 1)
-x_init_west_2 = np.array([-30, 29, 0, 0]).reshape(-1, 1)
+x_init_north = np.array([36, 70, -np.pi /2, 0.1]).reshape(-1, 1)
+x_init_south = np.array([35, -20, np.pi /2, 0.5]).reshape(-1, 1)
+x_init_east = np.array([70, 25, np.pi, 0.5]).reshape(-1, 1)
+x_init_west = np.array([0, 35, 0, 0.5]).reshape(-1, 1)
+x_init_west_2 = np.array([-30, 29, 0, 0.5]).reshape(-1, 1)
 
-# x_init = [x_init_east]
-x_init = [x_init_north, x_init_west, x_init_south,x_init_east]
+# x_init = [x_init_south]
+x_init = [x_init_south, x_init_north]
 
 
 sim.set_vehicle_initial_conditions(x_init)

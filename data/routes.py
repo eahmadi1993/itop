@@ -105,6 +105,7 @@ class Trajectory:
         self.d_lut_y = None
         self.dd_lut_x = None
         self.dd_lut_y = None
+        self.name = None
 
 
 class Spline:
@@ -118,6 +119,7 @@ class Spline:
         for tr_name, tr_data in self.track.track_data.items():
             # if tr_name == "es":
             traj = self.splinify(tr_data)
+            traj.name = tr_name
             self.my_traj[tr_name] = traj
         return self.my_traj
 
@@ -183,10 +185,10 @@ class ThetaFinder:
         self.init_x = None
         self.init_y = None
         self.paths = {
-            "n": ["nw", "nw", "nw"],
+            "n": ["ns", "ns", "ns"],
             "s": ["sn", "sn", "sn"],
             "e": ["es", "es", "es"],
-            "w": ["ws", "ws", "ws"]
+            "w": ["we", "we", "we"]
         }
 
     def set_initial_conditions(self, init_x, init_y):
