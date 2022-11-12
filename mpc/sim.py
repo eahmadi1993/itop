@@ -225,8 +225,8 @@ class Optimization:
         phi = np.arctan2(traj.d_lut_y(theta_bar, 0), traj.d_lut_x(theta_bar, 0))
         gamma_1 = (traj.dd_lut_y(theta_bar, 0, 0) * traj.d_lut_x(theta_bar, 0)) - \
                   (traj.d_lut_y(theta_bar, 0) * traj.dd_lut_x(theta_bar, 0, 0))
-        aux = (traj.d_lut_y(theta_bar, 0) + 1e-8) / (traj.d_lut_x(theta_bar, 0) + 1e-8)
-        gamma_2 = (1 + aux ** 2) * traj.dd_lut_x(theta_bar, 0, 0)
+        # aux = (traj.d_lut_y(theta_bar, 0) / (traj.d_lut_x(theta_bar, 0) + 1e-8)) + 1e-8
+        gamma_2 = traj.d_lut_y(theta_bar, 0) ** 2 + traj.d_lut_x(theta_bar, 0) ** 2
         gamma = gamma_1.elements()[0] / (gamma_2.elements()[0] + 1e-8)
 
         return phi, gamma
@@ -482,8 +482,7 @@ class Simulator:
     #     u_pred_shifted = np.concatenate((u_pred[:, 1:], np.zeros((self.sys.m, 1))), axis = 1)
     #     u_vir_pred_shifted = np.concatenate((u_vir_pred[1:], np.zeros((1, 1))), axis = 0)
     #     return x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted
-    def _get_shift_prediction(self, x_pred, theta_pred, u_pred, u_vir_pred, current_x, current_theta):
-        # todo: replace last zero by simulating the nonlinear system based on inputs and states from step N-1
+    def _get_shift_prediction(self, x_pred, theta_pred, u_pred, u_vir_pred, current_x, current_theta, traj):
         n = self.sys.n
         m = self.sys.m
         N = self.params.N
@@ -515,6 +514,16 @@ class Simulator:
         x_temp[:, i] = nl.update_nls_states(x_pred[:, N].reshape(-1, 1), u_pred[:, N - 1].reshape(-1, 1)).T
         theta_temp[i] = theta_pred[N] + u_vir_pred[N - 1]
 
+        # --- New: begin
+        cl = traj.cl[-1]
+        if (x_temp[2, 0] - x_temp[2, 1]) > np.pi:
+            x_temp[2, 1:] = x_temp[2, 1:] + 2 * np.pi
+        if (x_temp[2, 0] - x_temp[2, 1]) < -np.pi:
+            x_temp[2, 1:] = x_temp[2, 1:] - 2 * np.pi
+        if (x_temp[2, 0] - x_temp[2, 1]) < - 0.75 * cl:
+            x_temp[2, 1:] = x_temp[2, 1:] - cl
+        # --- New: end
+
         return x_temp, theta_temp, u_temp, u_vir_temp
 
     def get_shift_prediction_all_vehicles(self, x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all, current_x,
@@ -526,7 +535,7 @@ class Simulator:
         for i in range(self.num_veh):
             x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted = \
                 self._get_shift_prediction(x_pred_all[i], theta_pred_all[i], u_pred_all[i], u_vir_pred_all[i],
-                                           current_x[i], current_theta[i])
+                                           current_x[i], current_theta[i], self.all_traj[i])
             x_pred_shifted_all.append(x_pred_shifted)
             theta_pred_shifted_all.append(theta_pred_shifted)
             u_pred_shifted_all.append(u_pred_shifted)

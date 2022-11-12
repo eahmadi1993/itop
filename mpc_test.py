@@ -38,7 +38,7 @@ x_init_west = np.array([0, 35, 0, 0.5]).reshape(-1, 1)
 x_init_west_2 = np.array([-30, 29, 0, 0.5]).reshape(-1, 1)
 
 # x_init = [x_init_south]
-x_init = [x_init_south, x_init_north]
+x_init = [x_init_south, x_init_north, x_init_west]
 
 
 sim.set_vehicle_initial_conditions(x_init)
