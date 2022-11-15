@@ -16,23 +16,23 @@ class Track:
         self.track_width = lane_width * num_lane
 
     def load_track(self):
-        west_east = genfromtxt('we.csv', delimiter = ',')
-        west_north = genfromtxt('wn.csv', delimiter = ',')
-        west_south = genfromtxt('ws.csv', delimiter = ',')
+        west_east = genfromtxt('./data/we.csv', delimiter = ',')
+        west_north = genfromtxt('./data/wn.csv', delimiter = ',')
+        west_south = genfromtxt('./data/ws.csv', delimiter = ',')
 
-        south_north = genfromtxt('sn.csv', delimiter = ',')
-        south_east = genfromtxt('se.csv', delimiter = ',')
-        south_west = genfromtxt('sw.csv', delimiter = ',')
+        south_north = genfromtxt('./data/sn.csv', delimiter = ',')
+        south_east = genfromtxt('./data/se.csv', delimiter = ',')
+        south_west = genfromtxt('./data/sw.csv', delimiter = ',')
 
-        north_west = genfromtxt('nw.csv', delimiter = ',')
-        north_east = genfromtxt('ne.csv', delimiter = ',')
-        north_south = genfromtxt('ns.csv', delimiter = ',')
+        north_west = genfromtxt('./data/nw.csv', delimiter = ',')
+        north_east = genfromtxt('./data/ne.csv', delimiter = ',')
+        north_south = genfromtxt('./data/ns.csv', delimiter = ',')
 
-        east_west = genfromtxt('ew.csv', delimiter = ',')
-        east_north = genfromtxt('en_new.csv', delimiter=',')
-        east_south = genfromtxt('es_new.csv', delimiter=',')
-        # east_north = genfromtxt('en.csv', delimiter = ',')
-        # east_south = genfromtxt('es.csv', delimiter = ',')
+        east_west = genfromtxt('./data/ew.csv', delimiter = ',')
+        east_north = genfromtxt('./data/en_new.csv', delimiter=',')
+        east_south = genfromtxt('./data/es_new.csv', delimiter=',')
+        # east_north = genfromtxt('./data/en.csv', delimiter = ',')
+        # east_south = genfromtxt('./data/es.csv', delimiter = ',')
 
         self.track_data["we"] = west_east
         self.track_data["wn"] = west_north

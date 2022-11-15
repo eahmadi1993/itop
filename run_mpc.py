@@ -1,9 +1,10 @@
-from data.routes import ThetaFinder, Track, Spline, IntersectionLayout
-from mpc.sim import Simulator, SimParams, LinearSystem, BicycleModel
+from routes import ThetaFinder, Track, Spline
+from sim_mpc import MPCC, MPCCParams
 import numpy as np
-import matplotlib.pyplot as plt
 
-params = SimParams()
+from system import BicycleModel, LinearSystem
+
+params = MPCCParams()
 params.N = 9
 params.tf = 100
 params.ql = 100
@@ -29,7 +30,7 @@ track = Track(lane_width, num_lane)
 sp = Spline(track)
 theta_finder = ThetaFinder(track, sp)
 
-sim = Simulator(params, sys, theta_finder)
+sim = MPCC(params, sys, theta_finder)
 
 x_init_north = np.array([36, 70, -np.pi /2, 0.75]).reshape(-1, 1)
 x_init_south = np.array([34, -20, np.pi /2, 0.75]).reshape(-1, 1)
