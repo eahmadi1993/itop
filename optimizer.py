@@ -23,6 +23,8 @@ class Polytope:
         b_aux = np.array([self.veh_len / 2, self.veh_width / 2, self.veh_len / 2, self.veh_width / 2]).reshape(-1, 1)
         b_poly = b_aux + cs.mtimes(A_poly, cs.vcat([x, y]))
         return A_poly, b_poly
+
+
 class Optimization:
     """ class Optimization will be used in class Simulator. So, all traj, that is one of the inputs
      of class Optimization, comes from method set_vehicle_initial_conditions of class Simulator.
@@ -150,7 +152,7 @@ class Optimization:
                     delta_vir_input = self.vir_inputs[k][i - 1]
                 else:
                     delta_u = self.inputs[k][:, i - 1] - self.inputs[k][:, i - 2]
-                    delta_vir_input = self.vir_inputs[k][i - 1] -  self.vir_inputs[k][i - 2]
+                    delta_vir_input = self.vir_inputs[k][i - 1] - self.vir_inputs[k][i - 2]
 
                 obj += self.params.qc * ec ** 2 + self.params.ql * el ** 2 - self.params.q_theta * self.theta[k][i] + \
                        cs.dot(delta_u, cs.mtimes(self.params.Ru, delta_u)) + \
@@ -205,11 +207,9 @@ class Optimization:
                 self.opti.subject_to(self.inputs[k][0, _i] >= -5)  # minimum acceleration
                 self.opti.subject_to(self.inputs[k][0, _i] <= 5)  # maximum acceleration
 
-
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
             self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
-
 
     def set_v2v_constrs(self):
         for i in range(self.num_veh):
@@ -218,7 +218,7 @@ class Optimization:
                     for k in range(self.params.N):
 
                         poly_a, poly_b = self.polytope.get_polytope_A_b(self.states[i][0, k], self.states[i][1, k],
-                                                                    self.states[i][2, k])
+                                                                        self.states[i][2, k])
 
                         poly_a_neighbour, poly_b_neighbour = self.polytope.get_polytope_A_b(self.states[j][0, k],
                                                                                             self.states[j][1, k],
@@ -262,7 +262,7 @@ class Optimization:
 
     def set_v2v_constrs_ball(self):
         for i in range(self.num_veh):
-            for j in range(i+1, self.num_veh):
+            for j in range(i + 1, self.num_veh):
                 for k in range(self.params.N):
                     self.opti.subject_to(
                         (self.states[i][0, k] - self.states[j][0, k]) ** 2 +
@@ -272,11 +272,11 @@ class Optimization:
 
     def set_boundaries_constr_ball(self):
         for i in range(self.num_veh):
-            for k in range(1,self.params.N + 1):
+            for k in range(1, self.params.N + 1):
                 self.opti.subject_to(
-                    cs.sqrt((self.all_traj[i].lut_x(self.theta[i][k]) - self.states[i][0,k])**2 +
-                    (self.all_traj[i].lut_y(self.theta[i][k]) - self.states[i][1, k]) ** 2)
-                    <= ((self.theta_finder.track.track_width - self.sys.model.width)/2)
+                    cs.sqrt((self.all_traj[i].lut_x(self.theta[i][k]) - self.states[i][0, k]) ** 2 +
+                            (self.all_traj[i].lut_y(self.theta[i][k]) - self.states[i][1, k]) ** 2)
+                    <= ((self.theta_finder.track.track_width - self.sys.model.width) / 2)
                 )
 
     def solve(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
