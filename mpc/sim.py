@@ -35,7 +35,7 @@ class SimParams:
         self.q_theta = 1  # scalar
         self.Ru = 1  # matrix (m,1)
         self.Rv = 1  # scalar
-        self.vx0 = 0.05  # initial vehicle speed in x-axis
+        self.vx0 = 0.1  # initial vehicle speed in x-axis
 
 
 class BicycleModel:
@@ -182,7 +182,7 @@ class Optimization:
         self.ca_vars = None
         self.objective = None
         self.polytope = Polytope(self.sys.model.length, self.sys.model.width)
-        # # Particle model, that is a linear model with 4 states and 2 inputs
+        # Particle model, that is a linear model with 4 states and 2 inputs
         # self.A = np.array(
         #     [
         #         [0, 0, 1, 0],
@@ -296,7 +296,7 @@ class Optimization:
         self.objective = total_obj
 
     def set_constrs(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
-        nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
+        # nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
         for k in range(self.num_veh):
             for i in range(1, self.params.N + 1):
                 # Linearized system constraints
@@ -310,6 +310,8 @@ class Optimization:
                             cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
                             d_vec)
                 )
+
+
                 # Progress constraints
                 self.opti.subject_to(
                     self.theta[k][i] == self.theta[k][i - 1] + self.vir_inputs[k][i - 1]
@@ -317,27 +319,30 @@ class Optimization:
 
                 # self.opti.subject_to(self.theta[k][i] >= 0)
                 self.opti.subject_to(self.states[k][3, i] >= 0)  # minimum speed
-                self.opti.subject_to(self.states[k][3, i] <= 15)  # maximum speed
+                self.opti.subject_to(self.states[k][3, i] <= 10)  # maximum speed
 
-            for i in range(self.params.N):
-                # self.opti.subject_to(self.vir_inputs[k][i] >= 0)
-                self.opti.subject_to(self.inputs[k][1, i] >= -0.9)  # minimum steering angle
-                self.opti.subject_to(self.inputs[k][1, i] <= 0.9)  # maximum steering angle
-                self.opti.subject_to(self.inputs[k][0, i] >= -5)  # minimum acceleration
-                self.opti.subject_to(self.inputs[k][0, i] <= 5)  # maximum acceleration
+            for _i in range(self.params.N):
+                # self.opti.subject_to(self.vir_inputs[k][_i] >= 0)
+                self.opti.subject_to(self.inputs[k][1, _i] >= -0.5)  # minimum steering angle
+                self.opti.subject_to(self.inputs[k][1, _i] <= 0.5)  # maximum steering angle
+                self.opti.subject_to(self.inputs[k][0, _i] >= -5)  # minimum acceleration
+                self.opti.subject_to(self.inputs[k][0, _i] <= 5)  # maximum acceleration
 
 
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
             self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
 
+
     def set_v2v_constrs(self):
         for i in range(self.num_veh):
             for j in range(self.num_veh):
-                for k in range(self.params.N):
-                    poly_a, poly_b = self.polytope.get_polytope_A_b(self.states[i][0, k], self.states[i][1, k],
+                if j != i:
+                    for k in range(self.params.N):
+
+                        poly_a, poly_b = self.polytope.get_polytope_A_b(self.states[i][0, k], self.states[i][1, k],
                                                                     self.states[i][2, k])
-                    if j != i:
+
                         poly_a_neighbour, poly_b_neighbour = self.polytope.get_polytope_A_b(self.states[j][0, k],
                                                                                             self.states[j][1, k],
                                                                                             self.states[j][2, k])
@@ -383,7 +388,7 @@ class Optimization:
         self.set_obj(x_pred_all, theta_pred_all)
         self.opti.minimize(self.objective)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
-        self.set_v2v_constrs()
+        # self.set_v2v_constrs()
         opts = {'ipopt.print_level': 0, 'print_time': 0}
         self.opti.solver('ipopt'.lower(), opts)
         # self.opti.solver('qpOASES'.lower())
@@ -515,13 +520,13 @@ class Simulator:
         theta_temp[i] = theta_pred[N] + u_vir_pred[N - 1]
 
         # --- New: begin
-        cl = traj.cl[-1]
+        # cl = traj.cl[-1]
         if (x_temp[2, 0] - x_temp[2, 1]) > np.pi:
             x_temp[2, 1:] = x_temp[2, 1:] + 2 * np.pi
         if (x_temp[2, 0] - x_temp[2, 1]) < -np.pi:
             x_temp[2, 1:] = x_temp[2, 1:] - 2 * np.pi
-        if (x_temp[2, 0] - x_temp[2, 1]) < - 0.75 * cl:
-            x_temp[2, 1:] = x_temp[2, 1:] - cl
+        # if (x_temp[2, 0] - x_temp[2, 1]) < - 0.75 * cl:
+        #     x_temp[2, 1:] = x_temp[2, 1:] - cl
         # --- New: end
 
         return x_temp, theta_temp, u_temp, u_vir_temp
@@ -562,8 +567,8 @@ class Simulator:
         XX = [[] for i in range(self.num_veh)]  # defined for saving x[0]
         YY = [[] for i in range(self.num_veh)]  # defined for saving x[1]
         speed = [[] for i in range(self.num_veh)]
-        XX_pred = []  # defined for saving x_pred[0]
-        YY_pred = []  # defined for saving x_pred[1]
+        XX_pred = [[] for i in range(self.num_veh)]
+        YY_pred = [[] for i in range(self.num_veh)]
         time = np.arange(0, self.params.tf, self.sys.dt)
         x = self.x_init_list
         theta = self.theta_init_list
@@ -581,6 +586,7 @@ class Simulator:
             for i in range(self.num_veh):
                 plt.subplot(211)
                 plt.plot(XX[i], YY[i], label=f"veh_{i}")
+                plt.plot(XX_pred[i], YY_pred[i], '--')
                 plt.legend()
                 plt.subplot(212)
                 plt.plot(speed[i], label=f"veh_{i}")
@@ -618,8 +624,8 @@ class Simulator:
                 YY[i].append(x[i][1])
                 speed[i].append(x[i][3])
                 drawnow.drawnow(draw_fig, stop_on_close=True)
-            XX_pred.append(x_pred_all[0][0])
-            YY_pred.append(x_pred_all[0][1])
+                XX_pred[i] = x_pred_all[i][0, :]
+                YY_pred[i] = x_pred_all[i][1, :]
         return XX, YY, self.all_traj, XX_pred, YY_pred
 
     def get_results(self):

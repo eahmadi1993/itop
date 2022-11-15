@@ -186,9 +186,9 @@ class ThetaFinder:
         self.init_y = None
         self.paths = {
             "n": ["ns", "ns", "ns"],
-            "s": ["sn", "sn", "sn"],
+            "s": ["sw", "sw", "sw"],
             "e": ["es", "es", "es"],
-            "w": ["we", "we", "we"]
+            "w": ["wn", "wn", "wn"]
         }
 
     def set_initial_conditions(self, init_x, init_y):
