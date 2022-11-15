@@ -161,24 +161,25 @@ class Optimization:
     def set_constrs(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
         for k in range(self.num_veh):
-            for i in range(1, self.params.N + 1):
+            for i in range(1, self.params.N +1):
                 # Linearized system constraints
-                a_mat, b_mat, d_vec = self.sys.linearize_at(
-                    x_pred_all[k][:, i].reshape(-1, 1),
-                    u_pred_all[k][:, i - 1].reshape(-1, 1)
-                )
-                self.opti.subject_to(
-                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
-                            cs.mtimes(a_mat, self.states[k][:, i - 1]) +
-                            cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
-                            d_vec)
-                )
-                # Nonlinear system constraints
-                # self.opti.subject_to(
-                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
-                #         self.states[k][:, i - 1], self.inputs[k][:, i - 1]
-                #     )
+                # a_mat, b_mat, d_vec = self.sys.linearize_at(
+                #     x_pred_all[k][:, i].reshape(-1, 1),
+                #     u_pred_all[k][:, i - 1].reshape(-1, 1)
                 # )
+                # self.opti.subject_to(
+                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
+                #             cs.mtimes(a_mat, self.states[k][:, i - 1]) +
+                #             cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
+                #             d_vec)
+                # )
+
+                # Nonlinear system constraints
+                self.opti.subject_to(
+                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
+                        self.states[k][:, i - 1], self.inputs[k][:, i - 1]
+                    )
+                )
 
                 # Particle system constraints
                 # self.opti.subject_to(
@@ -258,6 +259,17 @@ class Optimization:
                 #             cs.dot(-poly_b, self.lambdas[i][l][:, i]) - cs.dot(poly_b_neighbour,
                 #                                                                self.lambdas[j][i][:, i])
                 #         )
+
+    def set_v2v_constrs_ball(self):
+        for i in range(self.num_veh):
+            for j in range(i+1, self.num_veh):
+                for k in range(self.params.N):
+                    self.opti.subject_to(
+                        (self.states[i][0, k] - self.states[j][0, k]) ** 2 +
+                        (self.states[i][1, k] - self.states[j][1, k]) ** 2
+                        >= (self.params.d_safe) ** 2
+                    )
+
     def set_boundaries_constr_ball(self):
         for i in range(self.num_veh):
             for k in range(1,self.params.N + 1):
@@ -273,7 +285,8 @@ class Optimization:
         self.opti.minimize(self.objective)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
         self.set_boundaries_constr_ball()
-        # self.set_v2v_constrs()
+        self.set_v2v_constrs()
+        # self.set_v2v_constrs_ball()
         opts = {'ipopt.print_level': 0, 'print_time': 0}
         self.opti.solver('ipopt'.lower(), opts)
         # self.opti.solver('qpOASES'.lower())

@@ -22,7 +22,10 @@ class BicycleModel:
              with respect to the longitudinal axis of the vehicle. """
         alpha = self.lr / (self.lf + self.lr)
         beta = np.arctan(alpha * np.tan(self.ubar[1]))
-        gamma = alpha / ((np.cos(self.ubar[1]) ** 2) * (1 + (alpha ** 2) * (np.tan(self.ubar[1]) ** 2)))
+        # gamma = alpha / ((np.cos(self.ubar[1]) ** 2) * (1 + (alpha ** 2) * (np.tan(self.ubar[1]) ** 2)))
+        g_aux_1 = (np.cos(self.ubar[1])) ** 2
+        g_aux_2 = (np.sin(self.ubar[1])) ** 2
+        gamma = alpha / (g_aux_1 + (alpha ** 2) * g_aux_2)
         return beta, gamma
 
     def _compute_xbar_dot(self):
@@ -47,7 +50,7 @@ class BicycleModel:
         beta, gamma = self._compute_beta_gamma()
         b_mat = [[0, -gamma * self.xbar[3] * np.sin(self.xbar[2] + beta)],
                  [0, gamma * self.xbar[3] * np.cos(self.xbar[2] + beta)],
-                 [0, (self.xbar[3] / self.lr) * gamma * np.cos(beta)],
+                 [0, (self.xbar[3] * gamma * np.cos(beta)) / self.lr],
                  [1, 0]]
         b_mat = np.array(b_mat, dtype=float)
         return b_mat

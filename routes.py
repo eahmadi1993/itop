@@ -90,8 +90,10 @@ class IntersectionLayout:
         plt.plot(trc_data["ne"][0, :], trc_data["ne"][1, :], 'c:', linewidth=0.75)
         plt.xlabel("x")
         plt.ylabel("y")
-        plt.xlim([math.floor(init_we_x), math.ceil(init_es_x)])
-        plt.ylim([math.floor(init_sn_y), 97])
+        # plt.xlim([math.floor(init_we_x), math.ceil(init_es_x)])
+        # plt.ylim([math.floor(init_sn_y), 97])
+        plt.xlim([-20, 80])
+        plt.ylim([-20, 80])
         # plt.show()
 
 
@@ -188,7 +190,7 @@ class ThetaFinder:
             "n": ["ns", "ns", "ns"],
             "s": ["sw", "sw", "sw"],
             "e": ["es", "es", "es"],
-            "w": ["wn", "wn", "wn"]
+            "w": ["we", "we", "we"]
         }
 
     def set_initial_conditions(self, init_x, init_y):
