@@ -60,39 +60,56 @@ class MPCC:
         for i in range(self.num_veh):
             # x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])  # based on linearized model
             x = sys_nl.update_nls_states(x_prev_list[i], u_opt_list[i])  # based on nonlinear model
+            self.theta_finder.set_initial_conditions(self.x_init_list[i][0], self.x_init_list[i][1])
             theta = self.theta_finder.find_theta(x[0], x[1])
             updated_x.append(x)
             updated_theta.append(theta)
         return updated_x, updated_theta
 
-    def _get_prediction(self, x0, theta0, traj):
-        x_pred = np.tile(x0, (1, self.params.N + 1))
-        theta_pred = np.tile(theta0, (self.params.N + 1, 1))
-        for i in range(1, self.params.N + 1):
-            theta_next = theta_pred[i - 1] + self.params.vx0
+    # def _get_prediction(self, x0, theta0, traj):
+    #     x_pred = np.tile(x0, (1, self.params.N + 1))
+    #     theta_pred = np.tile(theta0, (self.params.N + 1, 1))
+    #     for i in range(1, self.params.N + 1):
+    #         theta_next = theta_pred[i - 1] + self.params.vx0
+    #
+    #         phi_next = np.arctan2(traj.d_lut_y(theta_next, 0), traj.d_lut_x(theta_next, 0))
+    #
+    #         if (x_pred[2, i - 1] - phi_next) < - np.pi:
+    #             phi_next = phi_next - 2 * np.pi
+    #
+    #         if (x_pred[2, i - 1] - phi_next) > np.pi:
+    #             phi_next = phi_next + 2 * np.pi
+    #
+    #         x_pred[:, i] = np.array([[traj.lut_x(theta_next)],
+    #                                  [traj.lut_y(theta_next)],
+    #                                  [phi_next],
+    #                                  [self.params.vx0]], dtype = float).reshape(-1, )
+    #
+    #         theta_pred[i] = theta_next
+    #
+    #     return x_pred, theta_pred
+    def _get_prediction(self, x0, theta0):
+        nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
+        x_pred = np.zeros((self.sys.n, self.params.N + 1))
+        theta_pred = np.zeros((self.params.N + 1, 1))
+        u = np.zeros((self.sys.m, self.params.N))
+        for i in range(self.params.N + 1):
 
-            phi_next = np.arctan2(traj.d_lut_y(theta_next, 0), traj.d_lut_x(theta_next, 0))
-
-            if (x_pred[2, i - 1] - phi_next) < - np.pi:
-                phi_next = phi_next - 2 * np.pi
-
-            if (x_pred[2, i - 1] - phi_next) > np.pi:
-                phi_next = phi_next + 2 * np.pi
-
-            x_pred[:, i] = np.array([[traj.lut_x(theta_next)],
-                                     [traj.lut_y(theta_next)],
-                                     [phi_next],
-                                     [self.params.vx0]], dtype = float).reshape(-1, )
-
-            theta_pred[i] = theta_next
-
+            if i == 0:
+                x_pred[:, i] = x0.T
+                theta_pred[i] = theta0
+            else:
+                x_pred[:, i] = nl.update_nls_states(x_pred[:, i - 1].reshape(-1, 1), u[:, i - 1].reshape(-1, 1)).T
+                self.theta_finder.set_initial_conditions(x0[0], x0[1])
+                theta_pred[i] = self.theta_finder.find_theta(x_pred[0, i], x_pred[1, i])
         return x_pred, theta_pred
 
     def get_prediction_all_vehicles(self):
         x_pred_all = []
         theta_pred_all = []
         for i in range(self.num_veh):
-            x_pred, theta_pred = self._get_prediction(self.x_init_list[i], self.theta_init_list[i], self.all_traj[i])
+            # x_pred, theta_pred = self._get_prediction(self.x_init_list[i], self.theta_init_list[i], self.all_traj[i])
+            x_pred, theta_pred = self._get_prediction(self.x_init_list[i], self.theta_init_list[i])
             x_pred_all.append(x_pred)
             theta_pred_all.append(theta_pred)
 
@@ -198,7 +215,7 @@ class MPCC:
 
         intersection = IntersectionLayout(self.theta_finder.track, self.theta_finder.track.lane_width, 150)
 
-        ## drawnow code
+        # drawnow code
         def draw_fig():
             # plt.show()
             plt.subplot(211)
@@ -216,7 +233,7 @@ class MPCC:
         # MPC loop
         for t_ind, t in enumerate(time):
 
-            print(f"simulation progress: {t/time[-1] * 100:6.1f}%")
+            # print(f"simulation progress: {t/time[-1] * 100:6.1f}%")
             xbar = copy.deepcopy(x)
             ubar = copy.deepcopy(u)
 
@@ -240,7 +257,7 @@ class MPCC:
 
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
             x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
-
+            print(x_pred_all[0][:, -1].T)
             for i in range(self.num_veh):
                 XX[i].append(x[i][0])
                 YY[i].append(x[i][1])
