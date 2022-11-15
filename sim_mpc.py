@@ -1,4 +1,6 @@
 import copy
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -20,6 +22,7 @@ class MPCCParams:
         self.Ru = 1  # matrix (m,1)
         self.Rv = 1  # scalar
         self.vx0 = 0.1  # initial vehicle speed in x-axis
+
 
 class MPCC:
     def __init__(self, params: MPCCParams, sys: LinearSystem, theta_finder: ThetaFinder):
@@ -79,7 +82,7 @@ class MPCC:
             x_pred[:, i] = np.array([[traj.lut_x(theta_next)],
                                      [traj.lut_y(theta_next)],
                                      [phi_next],
-                                     [self.params.vx0]], dtype=float).reshape(-1, )
+                                     [self.params.vx0]], dtype = float).reshape(-1, )
 
             theta_pred[i] = theta_next
 
@@ -202,16 +205,18 @@ class MPCC:
             intersection.plot_intersection()
             for i in range(self.num_veh):
                 plt.subplot(211)
-                plt.plot(XX[i], YY[i], label=f"veh_{i}")
+                plt.plot(XX[i], YY[i], label = f"veh_{i}")
                 plt.plot(XX_pred[i], YY_pred[i], '--')
                 plt.legend()
                 plt.subplot(212)
-                plt.plot(speed[i], label=f"veh_{i}")
+                plt.plot(speed[i], label = f"veh_{i}")
                 plt.legend()
 
-        fig, ax = plt.subplots()
+        # fig, ax = plt.subplots()
         # MPC loop
         for t_ind, t in enumerate(time):
+
+            print(f"simulation progress: {t/time[-1] * 100:6.1f}%")
             xbar = copy.deepcopy(x)
             ubar = copy.deepcopy(u)
 
@@ -228,8 +233,8 @@ class MPCC:
             # for i in range(self.num_veh):
             #     print(f"veh_{i}: {u_vir_pred_all[i][0]}")
 
-            for i in range(self.num_veh):
-                print(f"veh_{i}: {theta_pred_all[i][0]}")
+            # for i in range(self.num_veh):
+            #     print(f"veh_{i}: {theta_pred_all[i][0]}")
 
             u = [upred[:, 0].reshape(-1, 1) for upred in u_pred_all]
 
@@ -240,10 +245,10 @@ class MPCC:
                 XX[i].append(x[i][0])
                 YY[i].append(x[i][1])
                 speed[i].append(x[i][3])
-                drawnow.drawnow(draw_fig, stop_on_close=True)
+                drawnow.drawnow(draw_fig, stop_on_close = True)
                 XX_pred[i] = x_pred_all[i][0, :]
                 YY_pred[i] = x_pred_all[i][1, :]
-        return XX, YY, self.all_traj, XX_pred, YY_pred
+        return XX, YY, self.all_traj, XX_pred, YY_pred, speed
 
     def get_results(self):
 

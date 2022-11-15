@@ -16,6 +16,7 @@ class Track:
         self.track_width = lane_width * num_lane
 
     def load_track(self):
+        print("loading track data ... ")
         west_east = genfromtxt('./data/we.csv', delimiter = ',')
         west_north = genfromtxt('./data/wn.csv', delimiter = ',')
         west_south = genfromtxt('./data/ws.csv', delimiter = ',')
@@ -29,8 +30,8 @@ class Track:
         north_south = genfromtxt('./data/ns.csv', delimiter = ',')
 
         east_west = genfromtxt('./data/ew.csv', delimiter = ',')
-        east_north = genfromtxt('./data/en_new.csv', delimiter=',')
-        east_south = genfromtxt('./data/es_new.csv', delimiter=',')
+        east_north = genfromtxt('./data/en_new.csv', delimiter = ',')
+        east_south = genfromtxt('./data/es_new.csv', delimiter = ',')
         # east_north = genfromtxt('./data/en.csv', delimiter = ',')
         # east_south = genfromtxt('./data/es.csv', delimiter = ',')
 
@@ -49,6 +50,7 @@ class Track:
         self.track_data["ew"] = east_west
         self.track_data["en"] = east_north
         self.track_data["es"] = east_south
+        print("track data loaded. ")
 
 
 class IntersectionLayout:
@@ -57,37 +59,46 @@ class IntersectionLayout:
         self.lane_width = lane_width
         self.track_length = track_length
 
-    def plot_intersection(self):
+    def plot_intersection(self, anim = False):
         trc_data = self.track.track_data
-        center_x = trc_data["sn"][0, 0]   # 32.1;
-        center_y = trc_data["we"][1, 0]   # 29.2;
+        center_x = trc_data["sn"][0, 0]  # 32.1;
+        center_y = trc_data["we"][1, 0]  # 29.2;
         init_sn_y = trc_data["sn"][1, 0]  # -34.47;
         init_we_x = trc_data["we"][0, 0]  # -31.31;
         init_es_x = trc_data["es"][0, 0]  # 95.51;
 
         # ----- Horizontal road -------
         # Horizontal top
-        plt.plot([init_we_x, center_x - self.lane_width],[self.lane_width + center_y, self.lane_width + center_y], 'k')
-        plt.plot([center_x + self.lane_width, self.track_length], [self.lane_width + center_y, self.lane_width + center_y], 'k')
+        if anim:
+            self.fig, ax = plt.subplots()
+            plt.subplot(211)
+        plt.plot([init_we_x, center_x - self.lane_width], [self.lane_width + center_y, self.lane_width + center_y], 'k')
+        plt.plot([center_x + self.lane_width, self.track_length],
+                 [self.lane_width + center_y, self.lane_width + center_y], 'k')
         # Horizontal reference line
         plt.plot([init_we_x, self.track_length], [center_y, center_y], 'k--')
         # Horizontal bottom
-        plt.plot([init_we_x, center_x - self.lane_width],[-self.lane_width + center_y, -self.lane_width + center_y],'k')
-        plt.plot([center_x + self.lane_width, self.track_length],[- self.lane_width + center_y, - self.lane_width + center_y],'k')
+        plt.plot([init_we_x, center_x - self.lane_width], [-self.lane_width + center_y, -self.lane_width + center_y],
+                 'k')
+        plt.plot([center_x + self.lane_width, self.track_length],
+                 [- self.lane_width + center_y, - self.lane_width + center_y], 'k')
         # ----- Vertical road ------
         # Vertical top
-        plt.plot([- self.lane_width + center_x, - self.lane_width + center_x],[center_y + self.lane_width, self.track_length],'k')
-        plt.plot([center_x + self.lane_width, center_x + self.lane_width],[center_y + self.lane_width, self.track_length],'k')
+        plt.plot([- self.lane_width + center_x, - self.lane_width + center_x],
+                 [center_y + self.lane_width, self.track_length], 'k')
+        plt.plot([center_x + self.lane_width, center_x + self.lane_width],
+                 [center_y + self.lane_width, self.track_length], 'k')
         # Vertical reference line
         plt.plot([center_x, center_x], [init_sn_y, self.track_length], 'k--')
         # Vertical bottom
-        plt.plot([-self.lane_width + center_x, - self.lane_width + center_x], [init_sn_y, center_y - self.lane_width], 'k')
+        plt.plot([-self.lane_width + center_x, - self.lane_width + center_x], [init_sn_y, center_y - self.lane_width],
+                 'k')
         plt.plot([center_x + self.lane_width, center_x + self.lane_width], [init_sn_y, center_y - self.lane_width], 'k')
         # ------- Turning directions ---------
-        plt.plot(trc_data["se"][0, :], trc_data["se"][1, :], 'c:', linewidth=0.75)
-        plt.plot(trc_data["sw"][0, :], trc_data["sw"][1, :], 'c:', linewidth=0.75)
-        plt.plot(trc_data["nw"][0, :], trc_data["nw"][1, :], 'c:', linewidth=0.75)
-        plt.plot(trc_data["ne"][0, :], trc_data["ne"][1, :], 'c:', linewidth=0.75)
+        plt.plot(trc_data["se"][0, :], trc_data["se"][1, :], 'c:', linewidth = 0.75)
+        plt.plot(trc_data["sw"][0, :], trc_data["sw"][1, :], 'c:', linewidth = 0.75)
+        plt.plot(trc_data["nw"][0, :], trc_data["nw"][1, :], 'c:', linewidth = 0.75)
+        plt.plot(trc_data["ne"][0, :], trc_data["ne"][1, :], 'c:', linewidth = 0.75)
         plt.xlabel("x")
         plt.ylabel("y")
         # plt.xlim([math.floor(init_we_x), math.ceil(init_es_x)])
