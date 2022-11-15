@@ -382,12 +382,21 @@ class Optimization:
                 #             cs.dot(-poly_b, self.lambdas[i][l][:, i]) - cs.dot(poly_b_neighbour,
                 #                                                                self.lambdas[j][i][:, i])
                 #         )
+    def set_boundaries_constr_ball(self):
+        for i in range(self.num_veh):
+            for k in range(1,self.params.N + 1):
+                self.opti.subject_to(
+                    cs.sqrt((self.all_traj[i].lut_x(self.theta[i][k]) - self.states[i][0,k])**2 +
+                    (self.all_traj[i].lut_y(self.theta[i][k]) - self.states[i][1, k]) ** 2)
+                    <= ((self.theta_finder.track.track_width - self.sys.model.width)/2)
+                )
 
     def solve(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
         self.set_vars()
         self.set_obj(x_pred_all, theta_pred_all)
         self.opti.minimize(self.objective)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
+        self.set_boundaries_constr_ball()
         # self.set_v2v_constrs()
         opts = {'ipopt.print_level': 0, 'print_time': 0}
         self.opti.solver('ipopt'.lower(), opts)
