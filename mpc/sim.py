@@ -296,7 +296,7 @@ class Optimization:
         self.objective = total_obj
 
     def set_constrs(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
-        # nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
+        nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
         for k in range(self.num_veh):
             for i in range(1, self.params.N + 1):
                 # Linearized system constraints
@@ -310,7 +310,20 @@ class Optimization:
                             cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
                             d_vec)
                 )
+                # Nonlinear system constraints
+                # self.opti.subject_to(
+                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
+                #         self.states[k][:, i - 1], self.inputs[k][:, i - 1]
+                #     )
+                # )
 
+                # Particle system constraints
+                # self.opti.subject_to(
+                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
+                #             cs.mtimes(self.A, self.states[k][:, i - 1]) +
+                #             cs.mtimes(self.B, self.inputs[k][:, i - 1])
+                #     )
+                # )
 
                 # Progress constraints
                 self.opti.subject_to(
