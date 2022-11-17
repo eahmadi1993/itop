@@ -13,15 +13,15 @@ from system import LinearSystem, NonlinearSystem
 
 class MPCCParams:
     def __init__(self):
-        self.N = 5  # prediction horizon
-        self.tf = 20  # final time
-        self.d_safe = 0.5  # safety distance
-        self.qc = 1  # scalar
-        self.ql = 1  # scalar
-        self.q_theta = 1  # scalar
-        self.Ru = 1  # matrix (m,1)
-        self.Rv = 1  # scalar
-        self.vx0 = 0.5  # initial vehicle speed in x-axis
+        self.N = 5           # prediction horizon
+        self.tf = 20         # final time
+        self.d_safe = 0.5    # safety distance
+        self.qc = 1          # scalar
+        self.ql = 1          # scalar
+        self.q_theta = 1     # scalar
+        self.Ru = 1          # matrix (m,1)
+        self.Rv = 1          # scalar
+        self.vx0 = 0.5       # initial vehicle speed in x-axis
 
 
 class MPCC:
@@ -60,13 +60,13 @@ class MPCC:
         for i in range(self.num_veh):
             # x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])  # based on linearized model
             x = sys_nl.update_nls_states(x_prev_list[i], u_opt_list[i])  # based on nonlinear model
-            self.theta_finder.set_initial_conditions(self.x_init_list[i][0], self.x_init_list[i][1])
+            self.theta_finder.set_initial_conditions(self.x_init_list[i][0], self.x_init_list[i][1]) # wrote it here to be sure each veh get its own track
             theta = self.theta_finder.find_theta(x[0], x[1])
             updated_x.append(x)
             updated_theta.append(theta)
         return updated_x, updated_theta
 
-    def _get_prediction(self, x0, theta0, traj):
+    def _get_prediction(self, x0, theta0, traj):  # based on Liniger
         x_pred = np.tile(x0, (1, self.params.N + 1))
         theta_pred = np.tile(theta0, (self.params.N + 1, 1))
         for i in range(1, self.params.N + 1):
@@ -89,13 +89,12 @@ class MPCC:
 
         return x_pred, theta_pred
 
-    # def _get_prediction(self, x0, theta0):
+    # def _get_prediction(self, x0, theta0):  # based on me and Ali
     #     nl = NonlinearSystem(self.sys.dt, self.sys.model.lr, self.sys.model.lf)
     #     x_pred = np.zeros((self.sys.n, self.params.N + 1))
     #     theta_pred = np.zeros((self.params.N + 1, 1))
     #     u = np.zeros((self.sys.m, self.params.N))
     #     for i in range(self.params.N + 1):
-    #
     #         if i == 0:
     #             x_pred[:, i] = x0.T
     #             theta_pred[i] = theta0
@@ -109,8 +108,8 @@ class MPCC:
         x_pred_all = []
         theta_pred_all = []
         for i in range(self.num_veh):
-            x_pred, theta_pred = self._get_prediction(self.x_init_list[i], self.theta_init_list[i], self.all_traj[i])
-            # x_pred, theta_pred = self._get_prediction(self.x_init_list[i], self.theta_init_list[i])
+            x_pred, theta_pred = self._get_prediction(self.x_init_list[i], self.theta_init_list[i], self.all_traj[i])  # based on Liniger
+            # x_pred, theta_pred = self._get_prediction(self.x_init_list[i], self.theta_init_list[i])  # based on me and Ali
             x_pred_all.append(x_pred)
             theta_pred_all.append(theta_pred)
 
@@ -118,6 +117,7 @@ class MPCC:
         u_vir_pred_all = [np.zeros((self.params.N, 1)) for _ in range(self.num_veh)]
         return x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all
 
+    # based on Liniger
     # def _get_shift_prediction(self, x_pred, theta_pred, u_pred, u_vir_pred, current_x, current_theta, traj):
     #     n = self.sys.n
     #     m = self.sys.m
@@ -162,6 +162,7 @@ class MPCC:
     #
     #     return x_temp, theta_temp, u_temp, u_vir_temp
 
+    # based on myy and Ali
     def _get_shift_prediction(self, x_pred, theta_pred, u_pred, vir_pred, current_x, current_theta):
         u_pred_shifted = np.zeros((self.sys.m, self.params.N))
         x_pred_shifted = np.zeros((self.sys.n, self.params.N + 1))
@@ -194,10 +195,10 @@ class MPCC:
         for i in range(self.num_veh):
             # x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted = \
             #     self._get_shift_prediction(x_pred_all[i], theta_pred_all[i], u_pred_all[i], u_vir_pred_all[i],
-            #                                current_x[i], current_theta[i], self.all_traj[i])
+            #                                current_x[i], current_theta[i], self.all_traj[i])  # based on Liniger
             x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted = \
                 self._get_shift_prediction(x_pred_all[i], theta_pred_all[i], u_pred_all[i], u_vir_pred_all[i],
-                                           current_x[i], current_theta[i])
+                                           current_x[i], current_theta[i])  # based on me and Ali
             x_pred_shifted_all.append(x_pred_shifted)
             theta_pred_shifted_all.append(theta_pred_shifted)
             u_pred_shifted_all.append(u_pred_shifted)
@@ -226,15 +227,17 @@ class MPCC:
         speed = [[] for i in range(self.num_veh)]
         XX_pred = [[] for i in range(self.num_veh)]
         YY_pred = [[] for i in range(self.num_veh)]
+
         time = np.arange(0, self.params.tf, self.sys.dt)
+
         x = self.x_init_list
         theta = self.theta_init_list
         u = self.u_init_list
+
         # write predictions for x, theta, and u
         x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.get_prediction_all_vehicles()
 
         intersection = IntersectionLayout(self.theta_finder.track, self.theta_finder.track.lane_width, 150)
-
         # drawnow code
         def draw_fig():
             # plt.show()
@@ -249,15 +252,11 @@ class MPCC:
                 plt.plot(speed[i], label = f"veh_{i}")
                 plt.legend()
 
-        # fig, ax = plt.subplots()
         # MPC loop
         for t_ind, t in enumerate(time):
-
             # print(f"simulation progress: {t/time[-1] * 100:6.1f}%")
             xbar = copy.deepcopy(x)
             ubar = copy.deepcopy(u)
-
-            # obtaining predictions of states and inputs for linearizing model and objective function
 
             x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.optimize(x,
                                                                                    theta,
@@ -277,6 +276,7 @@ class MPCC:
             x, theta = self.update_vehicles_states(x, u, xbar, ubar)
             x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
 
+            # obtaining predictions of states and inputs for linearizing model and objective function
             x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = \
                 self.get_shift_prediction_all_vehicles(x_pred_all,
                                                        theta_pred_all,
@@ -285,7 +285,8 @@ class MPCC:
                                                        x,
                                                        theta)
 
-            print(x_pred_all[0][:, -1].T)
+            # print(x_pred_all[0][:, -1].T)  # print prediction of x for the first vehicle
+
             for i in range(self.num_veh):
                 XX[i].append(x[i][0])
                 YY[i].append(x[i][1])
@@ -293,8 +294,8 @@ class MPCC:
                 drawnow.drawnow(draw_fig, stop_on_close = True)
                 XX_pred[i] = x_pred_all[i][0, :]
                 YY_pred[i] = x_pred_all[i][1, :]
+
         return XX, YY, self.all_traj, XX_pred, YY_pred, speed
 
     def get_results(self):
-
         pass

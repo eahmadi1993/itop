@@ -147,6 +147,7 @@ class Optimization:
                 #
                 # el = - cs.cos(phi) * (self.states[k][0, i] - self.all_traj[k].lut_x(self.theta[k][i])) - \
                 #      cs.sin(phi) * (self.states[k][1, i] - self.all_traj[k].lut_y(self.theta[k][i]))
+
                 if i == 1:
                     delta_u = self.inputs[k][:, i - 1]
                     delta_vir_input = self.vir_inputs[k][i - 1]
@@ -169,19 +170,19 @@ class Optimization:
                     x_pred_all[k][:, i].reshape(-1, 1),
                     u_pred_all[k][:, i - 1].reshape(-1, 1)
                 )
-                self.opti.subject_to(
-                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
-                            cs.mtimes(a_mat, self.states[k][:, i - 1]) +
-                            cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
-                            d_vec)
-                )
+                # self.opti.subject_to(
+                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * (
+                #             cs.mtimes(a_mat, self.states[k][:, i - 1]) +
+                #             cs.mtimes(b_mat, self.inputs[k][:, i - 1]) +
+                #             d_vec)
+                # )
 
                 # Nonlinear system constraints
-                # self.opti.subject_to(
-                #     self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
-                #         self.states[k][:, i - 1], self.inputs[k][:, i - 1]
-                #     )
-                # )
+                self.opti.subject_to(
+                    self.states[k][:, i] == self.states[k][:, i - 1] + self.sys.dt * nl.update_nls_states_casadi(
+                        self.states[k][:, i - 1], self.inputs[k][:, i - 1]
+                    )
+                )
 
                 # Particle system constraints
                 # self.opti.subject_to(
@@ -201,11 +202,11 @@ class Optimization:
                 self.opti.subject_to(self.states[k][3, i] <= 10)  # maximum speed
 
             for _i in range(self.params.N):
-                # self.opti.subject_to(self.vir_inputs[k][_i] >= 0)
+                self.opti.subject_to(self.vir_inputs[k][_i] >= 0)
                 self.opti.subject_to(self.inputs[k][1, _i] >= -0.5)  # minimum steering angle
-                self.opti.subject_to(self.inputs[k][1, _i] <= 0.5)  # maximum steering angle
-                self.opti.subject_to(self.inputs[k][0, _i] >= -5)  # minimum acceleration
-                self.opti.subject_to(self.inputs[k][0, _i] <= 5)  # maximum acceleration
+                self.opti.subject_to(self.inputs[k][1, _i] <= 0.5)   # maximum steering angle
+                self.opti.subject_to(self.inputs[k][0, _i] >= -5)    # minimum acceleration
+                self.opti.subject_to(self.inputs[k][0, _i] <= 5)     # maximum acceleration
 
             # initial condition constraints
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
@@ -285,11 +286,13 @@ class Optimization:
         self.opti.minimize(self.objective)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
         self.set_boundaries_constr_ball()
-        # self.set_v2v_constrs()
+        self.set_v2v_constrs()
         # self.set_v2v_constrs_ball()
+
         opts = {'ipopt.print_level': 0, 'print_time': 0}
         self.opti.solver('ipopt'.lower(), opts)
         # self.opti.solver('qpOASES'.lower())
+
         solution = self.opti.solve()
         x_pred_all = [np.array(solution.value(self.states[i])).reshape(self.sys.n, self.params.N + 1) for i in
                       range(self.num_veh)]
@@ -299,4 +302,5 @@ class Optimization:
                       range(self.num_veh)]
         u_vir_pred_all = [np.array(solution.value(self.vir_inputs[i])).reshape(self.params.N, 1) for i in
                           range(self.num_veh)]
+
         return x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all
