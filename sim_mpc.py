@@ -54,8 +54,7 @@ class MPCC:
         self.opt.set_all_traj(self.all_traj)  # here, I assign value to all_traj that belongs to class Optimization.
 
     def optimize(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
-
-        return self.opt.solve(x_prev_all, theta_prevall, x_pred_all, theta_pred_all, u_pred_all)
+        return self.opt.solve(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
 
     def update_vehicles_states(self, x_prev_list, u_opt_list):
         updated_x = []
