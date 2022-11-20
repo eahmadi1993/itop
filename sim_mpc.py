@@ -41,7 +41,7 @@ class MPCC:
         self.x_init_list = x_init_list
         m = self.sys.m
         for i in range(self.num_veh):
-            self.theta_finder.set_initial_conditions(x_init_list[i][0], x_init_list[i][1])
+            self.theta_finder.set_initial_conditions(x_init_list[i][0], x_init_list[i][1], path = None)
             self.all_traj.append(self.theta_finder.mytraj)
             self.u_init_list.append(np.zeros((m, 1)))
             self.theta_init_list.append(
@@ -60,7 +60,7 @@ class MPCC:
         for i in range(self.num_veh):
             # x = self.sys.update_states(x_prev_list[i], u_opt_list[i], x_bar_list[i], u_bar_list[i])  # based on linearized model
             x = sys_nl.update_nls_states(x_prev_list[i], u_opt_list[i])  # based on nonlinear model
-            self.theta_finder.set_initial_conditions(self.x_init_list[i][0], self.x_init_list[i][1]) # wrote it here to be sure each veh get its own track
+            self.theta_finder.set_initial_conditions(self.x_init_list[i][0], self.x_init_list[i][1], self.all_traj[i].name) # wrote it here to be sure each veh get its own track
             theta = self.theta_finder.find_theta(x[0], x[1])
             updated_x.append(x)
             updated_theta.append(theta)

@@ -7,7 +7,7 @@ from system import BicycleModel, LinearSystem
 import matplotlib.animation as animation
 
 params = MPCCParams()
-params.N = 20
+params.N = 5
 params.tf = 15
 params.ql = 10
 params.qc = 0  # 0.01
