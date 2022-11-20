@@ -285,8 +285,8 @@ class Optimization:
         self.set_obj(x_pred_all, theta_pred_all)
         self.opti.minimize(self.objective)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
-        self.set_boundaries_constr_ball()
-        self.set_v2v_constrs()
+        # self.set_boundaries_constr_ball()
+        # self.set_v2v_constrs()
         # self.set_v2v_constrs_ball()
 
         opts = {'ipopt.print_level': 0, 'print_time': 0}
