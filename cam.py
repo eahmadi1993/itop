@@ -40,7 +40,7 @@ class VehicleManager:
         for ind, veh in enumerate(veh_list):
             if veh.id == vehicle.id:
                 veh_list.pop(ind)
-            return veh_list
+        return veh_list
 
     def add_veh_west(self, veh: Vehicle):
         self.west_vehicles_list.append(veh)
@@ -78,7 +78,7 @@ class Simulator:
     def __init__(self, mpcc: MPCC):
         self.mpcc = mpcc
         self.sim_steps = None
-        self.arrivals = 3  # subject to change
+        self.arrivals = 8  # subject to change
         self.flow = 600  # subject to change
         self.rng = np.random.default_rng()
         self.west_arrival = None
@@ -180,6 +180,12 @@ class Simulator:
                                                veh.current_states,
                                                veh.current_progress)
 
+    def handle_north_departure(self):
+        for veh in self.vehicle_manager.north_vehicles_list:
+            if veh.current_states[1] < 0:
+                self.vehicle_manager.remove_veh_north(veh)
+                print("vehicle removed", len(self.vehicle_manager.north_vehicles_list))
+
     def run_simulation(self):
         intersection = IntersectionLayout(self.mpcc.theta_finder.track, self.mpcc.theta_finder.track.lane_width,
                                           150)
@@ -228,3 +234,5 @@ class Simulator:
             self.shift_predictions()
 
             drawnow.drawnow(draw_fig, stop_on_close = True)
+
+            self.handle_north_departure()
