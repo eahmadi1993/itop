@@ -21,6 +21,10 @@ class Vehicle:
         self.input_predictions = None
         self.progress_predictions = None
         self.traj = None
+        self.x_trajectory = []
+        self.y_trajectory = []
+        self.x_trajectory.append(initial_condition[0])
+        self.y_trajectory.append(initial_condition[1])
         print(f"vehicle approaching from {self.orientation} with {initial_condition.T}")
 
 
@@ -109,6 +113,8 @@ class Simulator:
             self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1])
             veh.current_progress = self.mpcc.theta_finder.find_theta(veh.current_states[0], veh.current_states[1])
             veh.current_states = self.mpcc.unwrap_x0(veh.current_states)
+            veh.x_trajectory.append(veh.current_states[0])
+            veh.y_trajectory.append(veh.current_states[1])
 
         for veh in self.vehicle_manager.east_vehicles_list:
             veh.current_states = sys_nl.update_nls_states(veh.current_states,
@@ -116,6 +122,8 @@ class Simulator:
             self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1])
             veh.current_progress = self.mpcc.theta_finder.find_theta(veh.current_states[0], veh.current_states[1])
             veh.current_states = self.mpcc.unwrap_x0(veh.current_states)
+            veh.x_trajectory.append(veh.current_states[0])
+            veh.y_trajectory.append(veh.current_states[1])
 
         for veh in self.vehicle_manager.north_vehicles_list:
             veh.current_states = sys_nl.update_nls_states(veh.current_states,
@@ -123,6 +131,8 @@ class Simulator:
             self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1])
             veh.current_progress = self.mpcc.theta_finder.find_theta(veh.current_states[0], veh.current_states[1])
             veh.current_states = self.mpcc.unwrap_x0(veh.current_states)
+            veh.x_trajectory.append(veh.current_states[0])
+            veh.y_trajectory.append(veh.current_states[1])
 
         for veh in self.vehicle_manager.south_vehicles_list:
             veh.current_states = sys_nl.update_nls_states(veh.current_states,
@@ -130,6 +140,8 @@ class Simulator:
             self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1])
             veh.current_progress = self.mpcc.theta_finder.find_theta(veh.current_states[0], veh.current_states[1])
             veh.current_states = self.mpcc.unwrap_x0(veh.current_states)
+            veh.x_trajectory.append(veh.current_states[0])
+            veh.y_trajectory.append(veh.current_states[1])
 
     def shift_predictions(self):
         for veh in self.vehicle_manager.west_vehicles_list:
@@ -169,25 +181,44 @@ class Simulator:
                                                veh.current_progress)
 
     def run_simulation(self):
+        intersection = IntersectionLayout(self.mpcc.theta_finder.track, self.mpcc.theta_finder.track.lane_width,
+                                          150)
+
+        def draw_fig():
+            intersection.plot_intersection()
+
+            for vehicle in self.vehicle_manager.west_vehicles_list:
+                plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+            for vehicle in self.vehicle_manager.east_vehicles_list:
+                plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+            for vehicle in self.vehicle_manager.north_vehicles_list:
+                plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+            for vehicle in self.vehicle_manager.south_vehicles_list:
+                plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+
         for i in range(self.sim_steps):
 
-            if self.north_arrival[i] == 1:
-                random_point = self.rng.uniform(23, 32.1)
-                x0 = np.array([random_point, 60, -np.pi / 2, self.rng.normal(2)], dtype = float).reshape(-1, 1)
+            try:
+                if self.north_arrival[i] == 1:
+                    random_point = self.rng.uniform(23, 32.1)
+                    x0 = np.array([random_point, 60, -np.pi / 2, self.rng.normal(2)], dtype = float).reshape(-1, 1)
 
-                self.mpcc.theta_finder.set_initial_conditions(x0[0], x0[1])
-                traj = self.mpcc.theta_finder.mytraj
-                theta0 = self.mpcc.theta_finder.find_theta(x0[0], x0[1])
+                    self.mpcc.theta_finder.set_initial_conditions(x0[0], x0[1])
+                    traj = self.mpcc.theta_finder.mytraj
+                    theta0 = self.mpcc.theta_finder.find_theta(x0[0], x0[1])
 
-                veh = Vehicle(x0, "north")
-                veh.state_predictions, veh.progress_predictions = self.mpcc.get_prediction(x0, theta0, traj)
-                veh.input_predictions = np.zeros((self.mpcc.sys.m, self.mpcc.params.N))
-                veh.vir_predictions = np.zeros((self.mpcc.params.N, 1))
-                veh.current_progress = theta0
-                veh.current_states = x0
-                veh.traj = traj
+                    veh = Vehicle(x0, "north")
+                    veh.state_predictions, veh.progress_predictions = self.mpcc.get_prediction(x0, theta0, traj)
+                    veh.input_predictions = np.zeros((self.mpcc.sys.m, self.mpcc.params.N))
+                    veh.vir_predictions = np.zeros((self.mpcc.params.N, 1))
+                    veh.current_progress = theta0
+                    veh.current_states = x0
+                    veh.traj = traj
 
-                self.vehicle_manager.add_veh_north(veh)
+                    self.vehicle_manager.add_veh_north(veh)
+
+            except Exception as exp:
+                pass
 
             if self.vehicle_manager.intersection_is_empty():
                 continue
@@ -195,3 +226,5 @@ class Simulator:
             self.vehicle_manager = self.mpcc.optimize(self.vehicle_manager)
             self.update_vehicle_states()
             self.shift_predictions()
+
+            drawnow.drawnow(draw_fig, stop_on_close = True)
