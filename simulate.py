@@ -1,7 +1,7 @@
 import numpy as np
 from cam import Simulator
 from routes import Track, Spline, ThetaFinder
-from sim_mpc import MPCCParams
+from sim_mpc import MPCCParams, MPCC
 from system import BicycleModel, LinearSystem
 
 params = MPCCParams()
@@ -28,6 +28,6 @@ sys = LinearSystem(byc_model)
 track = Track(lane_width, num_lane)
 sp = Spline(track)
 theta_finder = ThetaFinder(track, sp)
-
-simulator = Simulator(params, sys, theta_finder)
+mpcc = MPCC(params, sys, theta_finder)
+simulator = Simulator(mpcc)
 simulator.run_simulation()

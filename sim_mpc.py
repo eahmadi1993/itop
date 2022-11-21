@@ -53,8 +53,86 @@ class MPCC:
             )
         self.opt.set_all_traj(self.all_traj)  # here, I assign value to all_traj that belongs to class Optimization.
 
-    def optimize(self, x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all):
-        return self.opt.solve(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
+    def optimize(self, vehicle_manager):
+        x_prev_all = []
+        theta_prev_all = []
+        x_pred_all = []
+        theta_pred_all = []
+        u_pred_all = []
+        all_traj = []
+        n_west = len(vehicle_manager.west_vehicles_list)
+        n_east = len(vehicle_manager.east_vehicles_list)
+        n_north = len(vehicle_manager.north_vehicles_list)
+        n_south = len(vehicle_manager.south_vehicles_list)
+        self.num_veh = n_west + n_east + n_north + n_south
+
+        for veh in vehicle_manager.west_vehicles_list:
+            x_prev_all.append(veh.current_state)
+            theta_prev_all.append(veh.current_progress)
+            x_pred_all.append(veh.state_predictions)
+            theta_pred_all.append(veh.progress_predictions)
+            u_pred_all.append(veh.input_predictions)
+            all_traj.append(veh.traj)
+
+        for veh in vehicle_manager.east_vehicles_list:
+            x_prev_all.append(veh.current_state)
+            theta_prev_all.append(veh.current_progress)
+            x_pred_all.append(veh.state_predictions)
+            theta_pred_all.append(veh.progress_predictions)
+            u_pred_all.append(veh.input_predictions)
+            all_traj.append(veh.traj)
+
+        for veh in vehicle_manager.north_vehicles_list:
+            x_prev_all.append(veh.current_states)
+            theta_prev_all.append(veh.current_progress)
+            x_pred_all.append(veh.state_predictions)
+            theta_pred_all.append(veh.progress_predictions)
+            u_pred_all.append(veh.input_predictions)
+            all_traj.append(veh.traj)
+
+        for veh in vehicle_manager.south_vehicles_list:
+            x_prev_all.append(veh.current_state)
+            theta_prev_all.append(veh.current_progress)
+            x_pred_all.append(veh.state_predictions)
+            theta_pred_all.append(veh.progress_predictions)
+            u_pred_all.append(veh.input_predictions)
+            all_traj.append(veh.traj)
+
+        self.opt.set_all_traj(all_traj)
+        x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.opt.solve(x_prev_all, theta_prev_all, x_pred_all,
+                                                                                theta_pred_all, u_pred_all)
+        j = -1
+        for i in range(n_west):
+            j += 1
+            vehicle_manager.west_vehicles_list[j].state_predictions = x_pred_all[i]
+            vehicle_manager.west_vehicles_list[j].progress_predictions = theta_pred_all[i]
+            vehicle_manager.west_vehicles_list[j].input_predictions = u_pred_all[i]
+            vehicle_manager.west_vehicles_list[j].vir_predictions = u_vir_pred_all[i]
+        j = -1
+        for i in range(n_west, n_west + n_east):
+            j += 1
+            vehicle_manager.east_vehicles_list[j].state_predictions = x_pred_all[i]
+            vehicle_manager.east_vehicles_list[j].progress_predictions = theta_pred_all[i]
+            vehicle_manager.east_vehicles_list[j].input_predictions = u_pred_all[i]
+            vehicle_manager.east_vehicles_list[j].vir_predictions = u_vir_pred_all[i]
+
+        j = -1
+        for i in range(n_west + n_east, n_west + n_east + n_north):
+            j += 1
+            vehicle_manager.north_vehicles_list[j].state_predictions = x_pred_all[i]
+            vehicle_manager.north_vehicles_list[j].progress_predictions = theta_pred_all[i]
+            vehicle_manager.north_vehicles_list[j].input_predictions = u_pred_all[i]
+            vehicle_manager.north_vehicles_list[j].vir_predictions = u_vir_pred_all[i]
+
+        j = -1
+        for i in range(n_west + n_east + n_north, n_west + n_east + n_north + n_south):
+            j += 1
+            vehicle_manager.south_vehicles_list[j].state_predictions = x_pred_all[i]
+            vehicle_manager.south_vehicles_list[j].progress_predictions = theta_pred_all[i]
+            vehicle_manager.south_vehicles_list[j].input_predictions = u_pred_all[i]
+            vehicle_manager.south_vehicles_list[j].vir_predictions = u_vir_pred_all[i]
+
+        return vehicle_manager
 
     def update_vehicles_states(self, x_prev_list, u_opt_list):
         updated_x = []
@@ -169,7 +247,7 @@ class MPCC:
     #     return x_temp, theta_temp, u_temp, u_vir_temp
 
     # based on myy and Ali
-    def _get_shift_prediction(self, x_pred, theta_pred, u_pred, vir_pred, current_x, current_theta):
+    def get_shift_prediction(self, x_pred, theta_pred, u_pred, vir_pred, current_x, current_theta):
         u_pred_shifted = np.zeros((self.sys.m, self.params.N))
         x_pred_shifted = np.zeros((self.sys.n, self.params.N + 1))
         vir_pred_shifted = np.zeros((self.params.N, 1))
@@ -203,8 +281,9 @@ class MPCC:
             #     self._get_shift_prediction(x_pred_all[i], theta_pred_all[i], u_pred_all[i], u_vir_pred_all[i],
             #                                current_x[i], current_theta[i], self.all_traj[i])  # based on Liniger
             x_pred_shifted, theta_pred_shifted, u_pred_shifted, u_vir_pred_shifted = \
-                self._get_shift_prediction(x_pred_all[i], theta_pred_all[i], u_pred_all[i], u_vir_pred_all[i],
-                                           current_x[i], current_theta[i])  # based on me and Ali
+                self.get_shift_prediction(x_pred_all[i], theta_pred_all[i], u_pred_all[i], u_vir_pred_all[i],
+                                          current_x[i],
+                                          current_theta[i], )  # based on me and Ali
             x_pred_shifted_all.append(x_pred_shifted)
             theta_pred_shifted_all.append(theta_pred_shifted)
             u_pred_shifted_all.append(u_pred_shifted)
@@ -212,7 +291,7 @@ class MPCC:
 
         return x_pred_shifted_all, theta_pred_shifted_all, u_pred_shifted_all, u_vir_pred_shifted_all
 
-    def _unwrap_x0(self, x0):
+    def unwrap_x0(self, x0):
         if x0[2] > np.pi:
             x0[2] = x0[2] - 2 * np.pi
         if x0[2] <= - np.pi:
@@ -222,70 +301,70 @@ class MPCC:
     def get_unwrap_all_vehicles(self, x):
         x_all_unwrap = []
         for i in range(self.num_veh):
-            x0 = self._unwrap_x0(x[i])
+            x0 = self.unwrap_x0(x[i], )
             x_all_unwrap.append(x0)
 
         return x_all_unwrap
 
-    def run(self):
-        # XX = [[] for i in range(self.num_veh)]  # defined for saving x[0]
-        # YY = [[] for i in range(self.num_veh)]  # defined for saving x[1]
-        # speed = [[] for i in range(self.num_veh)]
-        # XX_pred = [[] for i in range(self.num_veh)]
-        # YY_pred = [[] for i in range(self.num_veh)]
-
-        x = self.x_init_list
-        theta = self.theta_init_list
-        u = self.u_init_list
-
-        # # write predictions for x, theta, and u
-        x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.get_prediction_all_vehicles()
-
-        # intersection = IntersectionLayout(self.theta_finder.track, self.theta_finder.track.lane_width, 150)
-
-        # drawnow code
-        def draw_fig():
-            # plt.show()
-            plt.subplot(211)
-            intersection.plot_intersection()
-            for i in range(self.num_veh):
-                plt.subplot(211)
-                plt.plot(XX[i], YY[i], label = f"veh_{i}")
-                plt.plot(XX_pred[i], YY_pred[i], '--')
-                plt.legend()
-                plt.subplot(212)
-                plt.plot(speed[i], label = f"veh_{i}")
-                plt.legend()
-
-        x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.optimize(x,
-                                                                               theta,
-                                                                               x_pred_all,
-                                                                               theta_pred_all,
-                                                                               u_pred_all
-                                                                               )
-
-        u = [upred[:, 0].reshape(-1, 1) for upred in u_pred_all]
-
-        x, theta = self.update_vehicles_states(x, u)
-        x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
-
-        x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = \
-            self.get_shift_prediction_all_vehicles(x_pred_all,
-                                                   theta_pred_all,
-                                                   u_pred_all,
-                                                   u_vir_pred_all,
-                                                   x,
-                                                   theta)
-
-        # for i in range(self.num_veh):
-        #     XX[i].append(x[i][0])
-        #     YY[i].append(x[i][1])
-        #     speed[i].append(x[i][3])
-        #     drawnow.drawnow(draw_fig, stop_on_close = True)
-        #     XX_pred[i] = x_pred_all[i][0, :]
-        #     YY_pred[i] = x_pred_all[i][1, :]
-
-        return XX, YY, XX_pred, YY_pred, speed
+    # def run(self):
+    #     # XX = [[] for i in range(self.num_veh)]  # defined for saving x[0]
+    #     # YY = [[] for i in range(self.num_veh)]  # defined for saving x[1]
+    #     # speed = [[] for i in range(self.num_veh)]
+    #     # XX_pred = [[] for i in range(self.num_veh)]
+    #     # YY_pred = [[] for i in range(self.num_veh)]
+    #
+    #     x = self.x_init_list
+    #     theta = self.theta_init_list
+    #     u = self.u_init_list
+    #
+    #     # # write predictions for x, theta, and u
+    #     x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.get_prediction_all_vehicles()
+    #
+    #     # intersection = IntersectionLayout(self.theta_finder.track, self.theta_finder.track.lane_width, 150)
+    #
+    #     # drawnow code
+    #     def draw_fig():
+    #         # plt.show()
+    #         plt.subplot(211)
+    #         intersection.plot_intersection()
+    #         for i in range(self.num_veh):
+    #             plt.subplot(211)
+    #             plt.plot(XX[i], YY[i], label = f"veh_{i}")
+    #             plt.plot(XX_pred[i], YY_pred[i], '--')
+    #             plt.legend()
+    #             plt.subplot(212)
+    #             plt.plot(speed[i], label = f"veh_{i}")
+    #             plt.legend()
+    #
+    #     x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = self.optimize(x,
+    #                                                                            theta,
+    #                                                                            x_pred_all,
+    #                                                                            theta_pred_all,
+    #                                                                            u_pred_all
+    #                                                                            )
+    #
+    #     u = [upred[:, 0].reshape(-1, 1) for upred in u_pred_all]
+    #
+    #     x, theta = self.update_vehicles_states(x, u)
+    #     x = self.get_unwrap_all_vehicles(x)  # I wrote function "unwrap_x0(x)", based on Liniger's code
+    #
+    #     x_pred_all, theta_pred_all, u_pred_all, u_vir_pred_all = \
+    #         self.get_shift_prediction_all_vehicles(x_pred_all,
+    #                                                theta_pred_all,
+    #                                                u_pred_all,
+    #                                                u_vir_pred_all,
+    #                                                x,
+    #                                                theta)
+    #
+    #     # for i in range(self.num_veh):
+    #     #     XX[i].append(x[i][0])
+    #     #     YY[i].append(x[i][1])
+    #     #     speed[i].append(x[i][3])
+    #     #     drawnow.drawnow(draw_fig, stop_on_close = True)
+    #     #     XX_pred[i] = x_pred_all[i][0, :]
+    #     #     YY_pred[i] = x_pred_all[i][1, :]
+    #
+    #     return XX, YY, XX_pred, YY_pred, speed
 
     def get_results(self):
         pass
