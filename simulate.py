@@ -5,10 +5,10 @@ from sim_mpc import MPCCParams, MPCC
 from system import BicycleModel, LinearSystem
 
 params = MPCCParams()
-params.N = 5
+params.N = 20
 params.tf = 15
 params.ql = 10
-params.qc = 0  # 0.01
+params.qc = 0.01  # 0.01
 params.Rv = 0.02
 params.q_theta = 0.10
 params.Ru = np.zeros((2, 2))

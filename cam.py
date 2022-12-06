@@ -78,7 +78,7 @@ class Simulator:
         self.mpcc = mpcc
         self.sim_steps = None
         self.arrivals = 3  # subject to change
-        self.flow = 300  # subject to change
+        self.flow = 100  # subject to change
         self.rng = np.random.default_rng()
         self.west_arrival = None
         self.south_arrival = None
@@ -251,15 +251,26 @@ class Simulator:
 
         def draw_fig():
             intersection.plot_intersection()
-
             for vehicle in self.vehicle_manager.west_vehicles_list:
-                plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+                plt.plot(vehicle.current_states[0], vehicle.current_states[1], "o")
+                plt.plot(vehicle.state_predictions[0, :], vehicle.state_predictions[1, :])
             for vehicle in self.vehicle_manager.east_vehicles_list:
-                plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+                plt.plot(vehicle.current_states[0], vehicle.current_states[1], "o")
+                plt.plot(vehicle.state_predictions[0, :], vehicle.state_predictions[1, :])
             for vehicle in self.vehicle_manager.north_vehicles_list:
-                plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+                plt.plot(vehicle.current_states[0], vehicle.current_states[1], "o")
+                plt.plot(vehicle.state_predictions[0, :], vehicle.state_predictions[1, :])
             for vehicle in self.vehicle_manager.south_vehicles_list:
-                plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+                plt.plot(vehicle.current_states[0], vehicle.current_states[1], "o")
+                plt.plot(vehicle.state_predictions[0, :], vehicle.state_predictions[1, :])
+            # for vehicle in self.vehicle_manager.west_vehicles_list:
+            #     plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+            # for vehicle in self.vehicle_manager.east_vehicles_list:
+            #     plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+            # for vehicle in self.vehicle_manager.north_vehicles_list:
+            #     plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
+            # for vehicle in self.vehicle_manager.south_vehicles_list:
+            #     plt.plot(vehicle.x_trajectory, vehicle.y_trajectory)
 
         for i in range(self.sim_steps):
 
