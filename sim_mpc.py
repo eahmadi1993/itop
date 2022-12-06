@@ -67,7 +67,7 @@ class MPCC:
         self.num_veh = n_west + n_east + n_north + n_south
 
         for veh in vehicle_manager.west_vehicles_list:
-            x_prev_all.append(veh.current_state)
+            x_prev_all.append(veh.current_states)
             theta_prev_all.append(veh.current_progress)
             x_pred_all.append(veh.state_predictions)
             theta_pred_all.append(veh.progress_predictions)
@@ -75,7 +75,7 @@ class MPCC:
             all_traj.append(veh.traj)
 
         for veh in vehicle_manager.east_vehicles_list:
-            x_prev_all.append(veh.current_state)
+            x_prev_all.append(veh.current_states)
             theta_prev_all.append(veh.current_progress)
             x_pred_all.append(veh.state_predictions)
             theta_pred_all.append(veh.progress_predictions)
@@ -91,7 +91,7 @@ class MPCC:
             all_traj.append(veh.traj)
 
         for veh in vehicle_manager.south_vehicles_list:
-            x_prev_all.append(veh.current_state)
+            x_prev_all.append(veh.current_states)
             theta_prev_all.append(veh.current_progress)
             x_pred_all.append(veh.state_predictions)
             theta_pred_all.append(veh.progress_predictions)

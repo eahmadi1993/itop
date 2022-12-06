@@ -21,8 +21,8 @@ class Vehicle:
         self.input_predictions = None
         self.progress_predictions = None
         self.traj = None
-        self.x_trajectory = []
-        self.y_trajectory = []
+        self.x_trajectory = []  # vehicle x position from initial condition to current time.
+        self.y_trajectory = []  # vehicle y position from initial condition to current time.
         self.x_trajectory.append(initial_condition[0])
         self.y_trajectory.append(initial_condition[1])
         print(f"vehicle approaching from {self.orientation} with {initial_condition.T}")
@@ -78,8 +78,8 @@ class Simulator:
     def __init__(self, mpcc: MPCC):
         self.mpcc = mpcc
         self.sim_steps = None
-        self.arrivals = 8  # subject to change
-        self.flow = 600  # subject to change
+        self.arrivals = 3  # subject to change
+        self.flow = 300  # subject to change
         self.rng = np.random.default_rng()
         self.west_arrival = None
         self.south_arrival = None
@@ -180,11 +180,63 @@ class Simulator:
                                                veh.current_states,
                                                veh.current_progress)
 
+    def get_vehicle(self, x0, orientation):
+        self.mpcc.theta_finder.set_initial_conditions(x0[0], x0[1])
+        traj = self.mpcc.theta_finder.mytraj
+        theta0 = self.mpcc.theta_finder.find_theta(x0[0], x0[1])
+
+        veh = Vehicle(x0, orientation)
+        veh.state_predictions, veh.progress_predictions = self.mpcc.get_prediction(x0, theta0, traj)
+        veh.input_predictions = np.zeros((self.mpcc.sys.m, self.mpcc.params.N))
+        veh.vir_predictions = np.zeros((self.mpcc.params.N, 1))
+        veh.current_progress = theta0
+        veh.current_states = x0
+        veh.traj = traj
+        return veh
+
+    def handle_north_approach(self):
+        random_point = self.rng.uniform(23, 32.1)
+        x0 = np.array([random_point, 60, -np.pi / 2, self.rng.normal(2)], dtype = float).reshape(-1, 1)
+        return self.get_vehicle(x0, "north")
+
+    def handle_south_approach(self):
+        random_point = self.rng.uniform(32.1, 41)
+        x0 = np.array([random_point, 0, np.pi / 2, self.rng.normal(2)], dtype = float).reshape(-1, 1)
+        return self.get_vehicle(x0, "south")
+
+    def handle_east_approach(self):
+        random_point = self.rng.uniform(29.2, 41)
+        x0 = np.array([60, random_point, np.pi, self.rng.normal(2)], dtype = float).reshape(-1, 1)
+        return self.get_vehicle(x0, "east")
+
+    def handle_west_approach(self):
+        random_point = self.rng.uniform(20, 29)
+        x0 = np.array([0, random_point, 0, self.rng.normal(2)], dtype = float).reshape(-1, 1)
+        return self.get_vehicle(x0, "west")
+
     def handle_north_departure(self):
         for veh in self.vehicle_manager.north_vehicles_list:
             if veh.current_states[1] < 0:
                 self.vehicle_manager.remove_veh_north(veh)
                 print("vehicle removed", len(self.vehicle_manager.north_vehicles_list))
+
+    def handle_south_departure(self):
+        for veh in self.vehicle_manager.south_vehicles_list:
+            if veh.current_states[1] > 65:
+                self.vehicle_manager.remove_veh_south(veh)
+                print("vehicle removed", len(self.vehicle_manager.south_vehicles_list))
+
+    def handle_east_departure(self):
+        for veh in self.vehicle_manager.east_vehicles_list:
+            if veh.current_states[0] < 0:
+                self.vehicle_manager.remove_veh_east(veh)
+                print("vehicle removed", len(self.vehicle_manager.east_vehicles_list))
+
+    def handle_west_departure(self):
+        for veh in self.vehicle_manager.west_vehicles_list:
+            if veh.current_states[0] > 65:
+                self.vehicle_manager.remove_veh_west(veh)
+                print("vehicle removed", len(self.vehicle_manager.west_vehicles_list))
 
     def run_simulation(self):
         intersection = IntersectionLayout(self.mpcc.theta_finder.track, self.mpcc.theta_finder.track.lane_width,
@@ -206,22 +258,18 @@ class Simulator:
 
             try:
                 if self.north_arrival[i] == 1:
-                    random_point = self.rng.uniform(23, 32.1)
-                    x0 = np.array([random_point, 60, -np.pi / 2, self.rng.normal(2)], dtype = float).reshape(-1, 1)
-
-                    self.mpcc.theta_finder.set_initial_conditions(x0[0], x0[1])
-                    traj = self.mpcc.theta_finder.mytraj
-                    theta0 = self.mpcc.theta_finder.find_theta(x0[0], x0[1])
-
-                    veh = Vehicle(x0, "north")
-                    veh.state_predictions, veh.progress_predictions = self.mpcc.get_prediction(x0, theta0, traj)
-                    veh.input_predictions = np.zeros((self.mpcc.sys.m, self.mpcc.params.N))
-                    veh.vir_predictions = np.zeros((self.mpcc.params.N, 1))
-                    veh.current_progress = theta0
-                    veh.current_states = x0
-                    veh.traj = traj
-
+                    veh = self.handle_north_approach()
                     self.vehicle_manager.add_veh_north(veh)
+                if self.south_arrival[i] == 1:
+                    veh = self.handle_south_approach()
+                    self.vehicle_manager.add_veh_south(veh)
+                if self.east_arrival[i] == 1:
+                    veh = self.handle_east_approach()
+                    self.vehicle_manager.add_veh_east(veh)
+                if self.west_arrival[i] == 1:
+                    veh = self.handle_west_approach()
+                    self.vehicle_manager.add_veh_west(veh)
+
 
             except Exception as exp:
                 pass
@@ -236,3 +284,6 @@ class Simulator:
             drawnow.drawnow(draw_fig, stop_on_close = True)
 
             self.handle_north_departure()
+            self.handle_south_departure()
+            self.handle_east_departure()
+            self.handle_west_departure()
