@@ -25,7 +25,6 @@ class Vehicle:
         self.y_trajectory = []  # vehicle y position from initial condition to current time.
         self.x_trajectory.append(initial_condition[0])
         self.y_trajectory.append(initial_condition[1])
-        print(f"vehicle approaching from {self.orientation} with {initial_condition.T}")
 
 
 class VehicleManager:
@@ -110,7 +109,8 @@ class Simulator:
         for veh in self.vehicle_manager.west_vehicles_list:
             veh.current_states = sys_nl.update_nls_states(veh.current_states,
                                                           veh.input_predictions[:, 0].reshape(-1, 1))
-            self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1])
+            self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1],
+                                                          path = veh.traj.name)
             veh.current_progress = self.mpcc.theta_finder.find_theta(veh.current_states[0], veh.current_states[1])
             veh.current_states = self.mpcc.unwrap_x0(veh.current_states)
             veh.x_trajectory.append(veh.current_states[0])
@@ -119,7 +119,8 @@ class Simulator:
         for veh in self.vehicle_manager.east_vehicles_list:
             veh.current_states = sys_nl.update_nls_states(veh.current_states,
                                                           veh.input_predictions[:, 0].reshape(-1, 1))
-            self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1])
+            self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1],
+                                                          path = veh.traj.name)
             veh.current_progress = self.mpcc.theta_finder.find_theta(veh.current_states[0], veh.current_states[1])
             veh.current_states = self.mpcc.unwrap_x0(veh.current_states)
             veh.x_trajectory.append(veh.current_states[0])
@@ -128,7 +129,8 @@ class Simulator:
         for veh in self.vehicle_manager.north_vehicles_list:
             veh.current_states = sys_nl.update_nls_states(veh.current_states,
                                                           veh.input_predictions[:, 0].reshape(-1, 1))
-            self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1])
+            self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1],
+                                                          path = veh.traj.name)
             veh.current_progress = self.mpcc.theta_finder.find_theta(veh.current_states[0], veh.current_states[1])
             veh.current_states = self.mpcc.unwrap_x0(veh.current_states)
             veh.x_trajectory.append(veh.current_states[0])
@@ -137,7 +139,8 @@ class Simulator:
         for veh in self.vehicle_manager.south_vehicles_list:
             veh.current_states = sys_nl.update_nls_states(veh.current_states,
                                                           veh.input_predictions[:, 0].reshape(-1, 1))
-            self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1])
+            self.mpcc.theta_finder.set_initial_conditions(veh.initial_condition[0], veh.initial_condition[1],
+                                                          path = veh.traj.name)
             veh.current_progress = self.mpcc.theta_finder.find_theta(veh.current_states[0], veh.current_states[1])
             veh.current_states = self.mpcc.unwrap_x0(veh.current_states)
             veh.x_trajectory.append(veh.current_states[0])
@@ -181,7 +184,7 @@ class Simulator:
                                                veh.current_progress)
 
     def get_vehicle(self, x0, orientation):
-        self.mpcc.theta_finder.set_initial_conditions(x0[0], x0[1])
+        self.mpcc.theta_finder.set_initial_conditions(x0[0], x0[1], path = None)
         traj = self.mpcc.theta_finder.mytraj
         theta0 = self.mpcc.theta_finder.find_theta(x0[0], x0[1])
 
@@ -192,6 +195,7 @@ class Simulator:
         veh.current_progress = theta0
         veh.current_states = x0
         veh.traj = traj
+        self.display_vehicle_status(veh.traj.name)
         return veh
 
     def handle_north_approach(self):
@@ -237,6 +241,9 @@ class Simulator:
             if veh.current_states[0] > 65 or veh.current_states[1] > 65 or veh.current_states[1] < 0:
                 self.vehicle_manager.remove_veh_west(veh)
                 print("vehicle removed", len(self.vehicle_manager.west_vehicles_list))
+
+    def display_vehicle_status(self, route):
+        print(f"vehicle approaching -> route: {route}")
 
     def run_simulation(self):
         intersection = IntersectionLayout(self.mpcc.theta_finder.track, self.mpcc.theta_finder.track.lane_width,

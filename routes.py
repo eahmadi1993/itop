@@ -198,16 +198,16 @@ class ThetaFinder:
         self.init_x = None
         self.init_y = None
         self.paths = {
-            "n": ["ns", "ns", "ns"],
-            "s": ["sw", "sw", "sw"],
-            "e": ["es", "es", "es"],
-            "w": ["we", "we", "we"]
+            "n": ["ns", "ne", "nw"],
+            "s": ["sn", "se", "sw"],
+            "e": ["es", "en", "ew"],
+            "w": ["wn", "ws", "we"]
         }
 
-    def set_initial_conditions(self, init_x, init_y):
+    def set_initial_conditions(self, init_x, init_y, path = None):
         self.init_x = init_x
         self.init_y = init_y
-        self.mytrack, self.mytraj = self.find_track_traj()
+        self.mytrack, self.mytraj = self.find_track_traj(path)
 
     def find_path(self):
         """ this function determines the direction each vehicle enter the plaza, south(s), north(n), east(e), and west(w)
@@ -222,12 +222,16 @@ class ThetaFinder:
         if self.init_y > 29.2 + 10:
             return "n"
 
-    def find_track_traj(self):
-        path = self.find_path()
-        tr_name = random.choice(self.paths[path])
-        # tr_name = "wn"
-        trc_data = self.track.track_data[tr_name]
-        trj_data = self.spline.my_traj[tr_name]
+    def find_track_traj(self, path):
+        if path is None:
+            path = self.find_path()
+            tr_name = random.choice(self.paths[path])
+            trc_data = self.track.track_data[tr_name]
+            trj_data = self.spline.my_traj[tr_name]
+            return trc_data, trj_data
+
+        trc_data = self.track.track_data[path]
+        trj_data = self.spline.my_traj[path]
         return trc_data, trj_data
 
     def find_theta(self, posx, posy):
