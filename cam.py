@@ -216,25 +216,25 @@ class Simulator:
 
     def handle_north_departure(self):
         for veh in self.vehicle_manager.north_vehicles_list:
-            if veh.current_states[1] < 0:
+            if veh.current_states[1] < 0 or veh.current_states[0] > 65 or veh.current_states[0] < 0:
                 self.vehicle_manager.remove_veh_north(veh)
                 print("vehicle removed", len(self.vehicle_manager.north_vehicles_list))
 
     def handle_south_departure(self):
         for veh in self.vehicle_manager.south_vehicles_list:
-            if veh.current_states[1] > 65:
+            if veh.current_states[1] > 65 or veh.current_states[0] > 65 or veh.current_states[0] < 0:
                 self.vehicle_manager.remove_veh_south(veh)
                 print("vehicle removed", len(self.vehicle_manager.south_vehicles_list))
 
     def handle_east_departure(self):
         for veh in self.vehicle_manager.east_vehicles_list:
-            if veh.current_states[0] < 0:
+            if veh.current_states[0] < 0 or veh.current_states[1] > 65 or veh.current_states[1] < 0:
                 self.vehicle_manager.remove_veh_east(veh)
                 print("vehicle removed", len(self.vehicle_manager.east_vehicles_list))
 
     def handle_west_departure(self):
         for veh in self.vehicle_manager.west_vehicles_list:
-            if veh.current_states[0] > 65:
+            if veh.current_states[0] > 65 or veh.current_states[1] > 65 or veh.current_states[1] < 0:
                 self.vehicle_manager.remove_veh_west(veh)
                 print("vehicle removed", len(self.vehicle_manager.west_vehicles_list))
 
