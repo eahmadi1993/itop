@@ -212,10 +212,25 @@ class Optimization:
             self.opti.subject_to(self.states[k][:, 0] == x_prev_all[k])
             self.opti.subject_to(self.theta[k][0] == theta_prev_all[k])
 
-    def set_v2v_constrs(self):
+    def set_v2v_constrs(self, x_pred):
         for i in range(self.num_veh):
             for j in range(self.num_veh):
+                flag = 0
                 if j != i:
+
+                    for k1 in range(self.params.N):
+                        if flag == 1:
+                            break
+
+                        for k2 in range(self.params.N):
+                            dist = np.sqrt((x_pred[i][0, k1] - x_pred[j][0, k2])**2 + (x_pred[i][1, k1] - x_pred[j][1, k2])**2)
+
+                            print(f"dist_{i}{j} = {dist}")
+                            if dist <= self.params.d_safe * 5: #TODO: change 5 to a reasonable number
+                                print(f"ca constr applied for distance {dist}")
+                                flag = 1
+                                break
+
                     for k in range(self.params.N):
 
                         poly_a, poly_b = self.polytope.get_polytope_A_b(self.states[i][0, k], self.states[i][1, k],
@@ -286,7 +301,7 @@ class Optimization:
         self.opti.minimize(self.objective)
         self.set_constrs(x_prev_all, theta_prev_all, x_pred_all, theta_pred_all, u_pred_all)
         self.set_boundaries_constr_ball()
-        self.set_v2v_constrs()
+        self.set_v2v_constrs(x_pred_all)
         # self.set_v2v_constrs_ball()
 
         opts = {'ipopt.print_level': 0, 'print_time': 0}
